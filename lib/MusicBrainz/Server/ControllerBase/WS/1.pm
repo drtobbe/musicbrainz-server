@@ -14,7 +14,7 @@ use Scalar::Util qw( looks_like_number );
 use Try::Tiny;
 
 with 'MusicBrainz::Server::Controller::Role::Profile' => {
-    threshold => DBDefs::PROFILE_WEB_SERVICE()
+    threshold => DBDefs->PROFILE_WEB_SERVICE()
 };
 
 with 'MusicBrainz::Server::Controller::Role::CORS';
@@ -91,6 +91,14 @@ sub apply_rate_limit
     return 1;
 }
 
+sub authenticate
+{
+    my ($self, $c, $scope) = @_;
+
+    $c->authenticate({}, 'musicbrainz.org');
+    $self->forbidden($c) unless $c->user->is_authorized($scope);
+}
+
 sub begin : Private {}
 sub auto : Private {
     my ($self, $c) = @_;
@@ -164,10 +172,19 @@ sub bad_req : Private
     $c->detach;
 }
 
+sub forbidden : Private
+{
+    my ($self, $c) = @_;
+    $c->res->status(HTTP_FORBIDDEN);
+    $c->res->content_type("text/plain; charset=utf-8");
+    $c->res->body($c->stash->{serializer}->output_error("You are not authorized to access this resource."));
+    $c->detach;
+}
+
 sub deny_readonly : Private
 {
     my ($self, $c) = @_;
-    if(DBDefs::DB_READ_ONLY) {
+    if(DBDefs->DB_READ_ONLY) {
         $c->res->status(HTTP_SERVICE_UNAVAILABLE);
         $c->res->content_type("text/plain; charset=utf-8");
         $c->res->body($c->stash->{serializer}->output_error("The database is currently in readonly mode and cannot handle your request"));

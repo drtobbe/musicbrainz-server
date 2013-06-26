@@ -48,8 +48,10 @@ sub load
     return unless @ids; # nothing to do
     my $query = "SELECT " . $self->_columns . "
                  FROM " . $self->_table . "
+                 LEFT JOIN label ON rl.label = label.id
+                 LEFT JOIN label_name sort_name ON label.sort_name = sort_name.id
                  WHERE release IN (" . placeholders(@ids) . ")
-                 ORDER BY release, rl_catalog_number";
+                 ORDER BY release, rl_catalog_number, musicbrainz_collate(sort_name.name)";
     my @labels = query_to_list($self->c->sql, sub { $self->_new_from_row(@_) },
                                $query, @ids);
     foreach my $label (@labels) {
@@ -58,27 +60,6 @@ sub load
             $_->add_label($label);
         }
     }
-}
-
-sub find_by_label
-{
-    my ($self, $label_id, $limit, $offset) = @_;
-    $offset ||= 0;
-    my $query = "SELECT " . $self->_columns . ",
-                    " . MusicBrainz::Server::Data::Release->_columns . "
-                 FROM " . $self->_table . "
-                    JOIN release ON release.id=rl.release
-                    JOIN release_name name ON release.name=name.id
-                 WHERE rl.label = ?
-                 ORDER BY date_year, date_month, date_day, catalog_number, musicbrainz_collate(name.name)
-                 OFFSET ?";
-    return query_to_list_limited(
-        $self->c->sql, $offset, $limit, sub {
-            my $rl = $self->_new_from_row(@_);
-            $rl->release(MusicBrainz::Server::Data::Release->_new_from_row(@_));
-            return $rl;
-        },
-        $query, $label_id, $offset);
 }
 
 sub merge_labels

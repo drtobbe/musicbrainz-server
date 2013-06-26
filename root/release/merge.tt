@@ -60,12 +60,8 @@
                   <td>[% artist_credit(release.artist_credit) %]</td>
                   <td>[% rdfa_release_format(release) or "-" %]</td>
                   <td>[% release.combined_track_count or "-" %]</td>
-                  <td>[% rdfa_release_event_date(release) %]</td>
-                  <td>
-                  [%- IF release.country -%]
-                    [% rdfa_release_country_abbr(release) %]
-                  [%- END -%]
-                  </td>
+                  <td>[% release_dates(release.events) %]</td>
+                  <td>[% release_countries(release.events) %]</td>
                   [%- IF filter_label -%]
                       <td>[% rdfa_release_catno_list(release.filter_labels(filter_label)) %]</td>
                   [%- ELSE -%]
@@ -115,7 +111,7 @@
                   [% END %]
                 </th>
               </tr>
-              [% FOR track=medium.tracklist.tracks %]
+              [% FOR track=medium.tracks %]
               <tr class="[% 'ev' IF loop.index % 2 == 0 %]">
                 <td class="pos t">
                   <span style="display: none">[% rdfa_track_number(track.position) %]</span>
@@ -135,6 +131,8 @@
           <p>[% l('This merge strategy will merge all mediums together into a single set of mediums. Recordings
                    between mediums will also be merged, into the recordings used on the target mediums.') %]</p>
           <p>[% l('This requires that corresponding mediums have the same number of tracks.') %]</p>
+          <p>[% l('Make sure all mediums in the releases being merged are in the correct position. For example, to merge a medium into 
+                   medium 2 of a release, it will need to be set as medium 2 of the release being merged.') %]</p>
 
           [% IF bad_recording_merges.size %]
             [% warning(l('The recording artists do not match! Perhaps you meant to use the "append mediums" merge strategy?')) %]

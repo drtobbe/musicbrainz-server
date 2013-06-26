@@ -14,11 +14,11 @@ with 'MusicBrainz::Server::Controller::Role::RelationshipEditor';
 
 sub build_type_info
 {
-    my ($tree) = @_;
+    my ($tree, $c) = @_;
 
     sub _builder
     {
-        my ($root, $info) = @_;
+        my ($c, $root, $info) = @_;
 
         if ($root->id) {
             my %attrs = map { $_->type_id => [
@@ -26,17 +26,19 @@ sub build_type_info
                 defined $_->max ? 0 + $_->max : undef,
             ] } $root->all_attributes;
             $info->{$root->id} = {
+                doc_link => $c->uri_for('/doc/relationship-types',
+                                        $root->gid)->as_string,
                 descr => $root->l_description,
                 attrs => \%attrs,
             };
         }
         foreach my $child ($root->all_children) {
-            _builder($child, $info);
+            _builder($c, $child, $info);
         }
     }
 
     my %type_info;
-    _builder($tree, \%type_info);
+    _builder($c, $tree, \%type_info);
     return %type_info;
 }
 
@@ -53,6 +55,20 @@ sub detach_existing {
     $c->detach;
 }
 
+=method detach_if_disallowed
+
+Detach to error_403 if the editor cannot use this page
+
+=cut
+
+sub detach_if_disallowed
+{
+    my ($self, $c, $type0, $type1) = @_;
+    if (!$c->model('Relationship')->editor_can_edit($c->user, $type0, $type1)) {
+        $c->detach('/error_403');
+    }
+}
+
 sub edit : Local RequireAuth Edit
 {
     my ($self, $c) = @_;
@@ -61,13 +77,15 @@ sub edit : Local RequireAuth Edit
     my $type0 = $c->req->params->{type0};
     my $type1 = $c->req->params->{type1};
 
+    $self->detach_if_disallowed($c, $type0, $type1);
+
     my $rel = $c->model('Relationship')->get_by_id($type0, $type1, $id);
     $c->model('Link')->load($rel);
     $c->model('LinkType')->load($rel->link);
     $c->model('Relationship')->load_entities($rel);
 
     my $tree = $c->model('LinkType')->get_tree($type0, $type1);
-    my %type_info = build_type_info($tree);
+    my %type_info = build_type_info($tree, $c);
 
     if (!%type_info) {
         $c->stash(
@@ -181,10 +199,13 @@ sub create : Local RequireAuth Edit
     my $qp = $c->req->query_params;
     my ($type0, $type1)         = ($qp->{type0},  $qp->{type1});
     my ($source_gid, $dest_gid) = ($qp->{entity0}, $qp->{entity1});
+
     if (!$type0 || !$type1 || !$source_gid || !$dest_gid) {
         $c->stash( message => l('Invalid arguments') );
         $c->detach('/error_500');
     }
+
+    $self->detach_if_disallowed($c, $type0, $type1);
 
     if ($type0 gt $type1) {
         # FIXME We should really support entering relationships backwards
@@ -209,7 +230,7 @@ sub create : Local RequireAuth Edit
     }
 
     my $tree = $c->model('LinkType')->get_tree($type0, $type1);
-    my %type_info = build_type_info($tree);
+    my %type_info = build_type_info($tree, $c);
 
     if (!%type_info) {
         $c->stash(
@@ -234,12 +255,17 @@ sub create : Local RequireAuth Edit
         attr_tree => $attr_tree,
         root => $tree
     );
+    if (!$c->form_posted && %{ $c->req->query_params }) {
+        $form->process( params => $c->req->query_params );
+        $form->clear_errors;
+    }
+
     $c->stash(
         source => $source, source_type => $type0,
         dest   => $dest,   dest_type   => $type1
     );
 
-    if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
+    if ($c->form_posted && $form->submitted_and_valid($c->req->body_params)) {
         my @attributes = $self->flatten_attributes($form->field('attrs'));
 
         my $entity0 = $source;
@@ -286,6 +312,7 @@ sub create_url : Local RequireAuth Edit
     }
 
     my @types = sort ($type, 'url');
+    $self->detach_if_disallowed($c, @types);
 
     my $model = $c->model(type_to_model($type));
     unless (defined $model) {
@@ -300,7 +327,7 @@ sub create_url : Local RequireAuth Edit
     }
 
     my $tree = $c->model('LinkType')->get_tree(@types);
-    my %type_info = build_type_info($tree);
+    my %type_info = build_type_info($tree, $c);
 
     if (!%type_info) {
         $c->stash(
@@ -326,13 +353,17 @@ sub create_url : Local RequireAuth Edit
         root => $tree,
         attr_tree => $attr_tree
     );
+    if (!$c->form_posted && %{ $c->req->query_params }) {
+        $form->process( params => $c->req->query_params );
+        $form->clear_errors;
+    }
 
     $c->stash(
         entity => $entity,
         type => $type,
     );
 
-    if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
+    if ($c->form_posted && $form->submitted_and_valid($c->req->body_params)) {
         my @attributes = $self->flatten_attributes($form->field('attrs'));
         my $url = $c->model('URL')->find_or_insert($form->field('url')->value);
 
@@ -365,6 +396,8 @@ sub delete : Local RequireAuth Edit
     my $id = $c->req->params->{id};
     my $type0 = $c->req->params->{type0};
     my $type1 = $c->req->params->{type1};
+
+    $self->detach_if_disallowed($c, $type0, $type1);
 
     my $rel = $c->model('Relationship')->get_by_id($type0, $type1, $id);
     $c->model('Link')->load($rel);

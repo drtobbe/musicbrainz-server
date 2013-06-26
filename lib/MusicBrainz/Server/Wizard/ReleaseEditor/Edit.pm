@@ -2,6 +2,7 @@ package MusicBrainz::Server::Wizard::ReleaseEditor::Edit;
 use Moose;
 use Data::Compare;
 use namespace::autoclean;
+use MusicBrainz::Server::ControllerUtils::Release qw( load_release_events );
 use MusicBrainz::Server::Data::Utils qw( artist_credit_to_ref trim );
 use MusicBrainz::Server::Form::Utils qw( expand_param expand_all_params collapse_param );
 use MusicBrainz::Server::Track qw( format_track_length );
@@ -9,7 +10,6 @@ use MusicBrainz::Server::Track qw( format_track_length );
 extends 'MusicBrainz::Server::Wizard::ReleaseEditor';
 
 use MusicBrainz::Server::Constants qw(
-    $EDIT_RECORDING_EDIT
     $EDIT_RELEASE_EDIT
     $EDIT_RELEASE_ARTIST
 );
@@ -32,8 +32,8 @@ augment 'create_edits' => sub
     # release edit
     # ----------------------------------------
 
-    my @fields = qw( packaging_id status_id script_id language_id country_id
-                     date as_auto_editor release_group_id artist_credit );
+    my @fields = qw( packaging_id status_id script_id language_id
+                     as_auto_editor release_group_id artist_credit events );
     my %args = map { $_ => $data->{$_} } grep { exists $data->{$_} } @fields;
 
     $args{name} = trim ($data->{name});
@@ -49,34 +49,14 @@ augment 'create_edits' => sub
         $args{barcode} = undef unless $data->{barcode};
     }
 
+    if ($args{events}) {
+        $args{events} = $self->_filter_release_events($args{events});
+    }
+
     $args{'to_edit'} = $self->release;
     $self->c->stash->{changes} = 0;
 
     $create_edit->($EDIT_RELEASE_EDIT, $editnote, %args);
-
-    # recording edits
-    # ----------------------------------------
-
-    my $medium_index = -1;
-    for my $medium (@{ $data->{rec_mediums} }) {
-        $medium_index++;
-        my $track_index = -1;
-        for my $track_association (@{ $medium->{associations} }) {
-            $track_index++;
-            next if $track_association->{gid} eq 'new';
-            if ($track_association->{update_recording}) {
-                my $track = $data->{mediums}[ $medium_index ]{tracks}[ $track_index ];
-                $create_edit->(
-                    $EDIT_RECORDING_EDIT, $editnote,
-                    to_edit => $self->c->model('Recording')->get_by_gid( $track_association->{gid} ),
-                    name => $track->name,
-                    artist_credit => artist_credit_to_ref($track->artist_credit, [ "gid" ]),
-                    length => $track->length,
-                    as_auto_editor => $data->{as_auto_editor},
-                );
-            }
-        }
-    }
 
     return $self->release;
 };
@@ -133,6 +113,7 @@ sub _load_release
     $self->c->model('Label')->load(@{ $self->release->labels });
     $self->c->model('ReleaseGroupType')->load($self->release->release_group);
     $self->c->model('Release')->annotation->load_latest ($self->release);
+    load_release_events($self->c, $self->release);
 }
 
 sub _edits_from_tracklist

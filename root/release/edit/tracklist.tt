@@ -70,8 +70,7 @@
       </td>
       <td class="icon">
         <input type="button" class="icon remove-artist-credit"
-          title="[% l('Remove Artist Credit') %]"
-          style="background-image: url([% c.uri_for("/static/images/icons/delete_row.png") %]); width: 16px; height: 16px; border: 0;" />
+          title="[% l('Remove Artist Credit') %]" />
       </td>
     </tr>
   [% END %]
@@ -86,8 +85,7 @@
       </td>
       <td class="icon">
         <input type="button" class="icon add-artist-credit"
-          title="[% l('Add Artist Credit') %]"
-          style="background-image: url([% c.uri_for("/static/images/icons/add_row.png") %]); width: 16px; height: 16px; border: 0;" />
+          title="[% l('Add Artist Credit') %]" />
       </td>
     </tr>
   </tbody>
@@ -105,7 +103,7 @@
 <div style="display: none;" class="tracklist-searching import-message">
   <p>
     <img src="[% c.uri_for("/static/images/icons/loading.gif") %]" />
-    &nbsp;
+    &#xa0;
     [% l('Searching...') %]
   </p>
 </div>
@@ -220,7 +218,7 @@
           <td><input type="text" id="track-count" class="track-count" value="" /></td>
           <td>
             <div class="buttons">
-              <a style="min-width: 5em;" href="#import-search">[% l('Search') %]</a>
+              <a style="min-width: 5em;" id="import-search-go" href="#import-search">[% l('Search') %]</a>
             </div>
           </td>
         </tr>
@@ -282,7 +280,7 @@
       <div style="display: none; height: 6em; margin-top: 5em;" class="tracklist-loading">
         <p>
           <img src="[% c.uri_for("/static/images/icons/loading.gif") %]" />
-          &nbsp;
+          &#xa0;
           [% l('Now loading tracklist...') %]
         </p>
       </div>
@@ -307,11 +305,9 @@
         </td>
         <td class="reorder">
             <input type="button" class="icon track-down"
-              title="[% l('Move track down') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/track-down.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Move track down') %]" />
             <input type="button" class="icon track-up"
-              title="[% l('Move track up') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/track-up.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Move track up') %]" />
         <td class="title">
           <input type="hidden" class="id" />
           <input type="text" class="track-name" />
@@ -330,13 +326,11 @@
         </td>
         <td class="icon">
           <input type="button" class="icon guesscase-track"
-            title="[% l('Guess case track') %]"
-            style="background-image: url([% c.uri_for("/static/images/icons/guesscase.png") %]); width: 16px; height: 16px; border: 0;" />
+            title="[% l('Guess case track') %]" />
 
           <input type="hidden" class="deleted" value="0" />
           <input type="button" class="icon remove-track"
-            title="[% l('Remove track') %]"
-            style="background-image: url([% c.uri_for("/static/images/icons/delete_row.png") %]); width: 16px; height: 16px; border: 0;" />
+            title="[% l('Remove track') %]" />
         </td>
       </tr>
       <tr class="track-artist-credit container" style="display: none">
@@ -348,6 +342,7 @@
 
     [% FOR medium_field=form.field('mediums').fields %]
     <fieldset class="advanced-disc" id="mediums.[% loop.index %].advanced-disc">
+      [% r.hidden(medium_field.field('medium_id_for_recordings'), class => 'medium_id_for_recordings') %]
       [% r.textarea(medium_field.field('edits'), { class => 'edits', style => 'display: none;' }) %]
 
       <legend>
@@ -358,11 +353,10 @@
         <tr>
           <td class="icon">
             <input type="button" class="icon expand-disc"
-              title="[% l('Expand Disc') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/expand.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Expand Disc') %]" />
             <input type="button" class="icon collapse-disc"
               title="[% l('Collapse Disc') %]"
-              style="display: none; background-image: url([% c.uri_for("/static/images/icons/collapse.png") %]); width: 16px; height: 16px; border: 0;" />
+              style="display: none;" />
           </td>
 
           <td class="format">
@@ -371,7 +365,6 @@
                 [% r.hidden(medium_field.field('toc'), class => 'toc') %]
                 [% r.hidden(medium_field.field('deleted'), class => 'deleted') %]
                 [% r.hidden(medium_field.field('position'), class => 'position') %]
-                [% r.hidden(medium_field.field('tracklist_id'), class => 'tracklist-id') %]
 
                 <div class="row">
                   [% r.label(medium_field.field('format_id'), l('Format')) %]
@@ -382,8 +375,7 @@
                   [% r.text(medium_field.field('name'), class => 'name') %]
 
                   <input type="button" class="icon guesscase-medium"
-                      title="[% l('Guess case disc title') %]"
-                      style="background-image: url([% c.uri_for("/static/images/icons/guesscase.png") %]); width: 16px; height: 16px; border: 0;" />
+                      title="[% l('Guess case disc title') %]" />
 
                 </div>
             </div>
@@ -397,15 +389,12 @@
 
           <td class="icon" style="text-align: right;">
             <input type="button" class="icon disc-down"
-              title="[% l('Move disc down') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/down.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Move disc down') %]" />
             <input type="button" class="icon disc-up"
-              title="[% l('Move disc up') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/up.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Move disc up') %]" />
             <span class="empty-icon" style="display: inline-block; width: 16px; height: 16px;"> </span>
             <input type="button" class="icon remove-disc"
-              title="[% l('Remove disc') %]"
-              style="background-image: url([% c.uri_for("/static/images/icons/delete_row.png") %]); width: 16px; height: 16px; border: 0;" />
+              title="[% l('Remove disc') %]" />
           </td>
         </tr>
       </table>
@@ -413,7 +402,7 @@
       <div style="display: none" class="tracklist-loading">
         <p>
           <img src="[% c.uri_for("/static/images/icons/loading.gif") %]" />
-          &nbsp;
+          &#xa0;
           [% l('Now loading tracklist...') %]
         </p>
       </div>
@@ -454,8 +443,7 @@
           [% l('Add {num} track(s)', num => '<input type="text" class="add-track-count" value="1" />') %]
         </span>
         <input type="button" class="icon add-track"
-            title="[% l('Add track(s)') %]"
-            style="background-image: url([% c.uri_for("/static/images/icons/add_row.png") %]); width: 16px; height: 16px; border: 0;" />
+            title="[% l('Add track(s)') %]" />
       </div>
 
     </fieldset>
@@ -465,7 +453,7 @@
       [%#- FIXME: use guesscase() -%]
 
       <fieldset class="guesscase">
-        <legend>[% l('Guess case') %]</legend>
+        <legend>[% lp('Guess case', 'header') %]</legend>
         <table style="width: 100%">
           <tr>
             <td class="icon" style="vertical-align: top; padding: 10px; width: 32px;">
@@ -476,14 +464,14 @@
                 <select name="gc-mode" id="gc-mode"> </select>
                 <br />
                 <input type="checkbox" name="gc-keepuppercase" id="gc-keepuppercase" checked="checked">
-                <label for="gc-keepuppercase">[% l('Keep uppercase words uppercased') %]</label>
+                <label for="gc-keepuppercase">[% l('Keep all-uppercase words uppercased') %]</label>
                 <br />
                 <input type="checkbox" name="gc-roman" id="gc-roman">
                 <label for="gc-roman">[% l('Uppercase roman numerals') %]</label>
               </p>
             </td>
             <td class="buttons" style="margin: 10px; vertical-align: top;">
-              <a href="#guesscase" style="float: right">[% l('Guess case') %]</a>
+              <a href="#guesscase" style="float: right">[% lp('Guess case', 'button/menu') %]</a>
             </td>
           </tr>
         </table>

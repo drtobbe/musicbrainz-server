@@ -99,7 +99,7 @@ $("body")
         if (this.style.display == "none") return;
         activeSelect.select(this);
     })
-    .on("hover", "div.multiselect > div.menu > a", function(event) {
+    .on("mouseenter", "div.multiselect > div.menu > a", function(event) {
         var menu = this.parentNode;
 
         if (activeSelect && activeSelect.menu === menu) {
@@ -192,18 +192,17 @@ var multiselect = function(input, placeholder, cacheKey) {
     })
     .on("keydown", function(event) {
         if (event.keyCode == 13) { // enter
-            if (self.hoverOption)
+            if (self.hoverOption) {
                 self.select(self.hoverOption);
-
+                killEvent(event);
+            }
         } else if (event.keyCode == 38) { // up
-            if (self.activeOption()) return;
-
             // opera skips these when tabbing, so focus them explicitly.
-            if (self.items.lastChild) {
+            if (!self.activeOption() && self.items.lastChild) {
                 self.hide();
                 self.items.lastChild.focus();
-            } else return;
-
+                killEvent(event);
+            }
         } else if (event.keyCode == 40) { // down
             self.show();
 
@@ -214,9 +213,9 @@ var multiselect = function(input, placeholder, cacheKey) {
                 var option = self.activeOption() || self.firstOption();
                 option ? self.activateOption(option) : self.hide();
             }, 1);
-        } else return;
 
-        killEvent(event);
+            killEvent(event);
+        }
     })
     .on("input", function(event) {
         self.lookup(this.value);
@@ -293,7 +292,6 @@ multiselect.prototype.activateOption = function(option, focus) {
     if (option === this.hoverOption) return;
 
     this.hoverOption && (this.hoverOption.className = "");
-    this.hoverOption = null;
     this.hoverOption = option;
     option.className = "hover";
 };
@@ -344,8 +342,9 @@ multiselect.prototype.select = function(option) {
 };
 
 multiselect.prototype.matchesTerm = function(option) {
-    var name = option.getAttribute("data-unaccented") || option.textContent || option.innerText,
-        index = name.toLowerCase().indexOf(this.term);
+    var name = option.textContent || option.innerText;
+    var unac = option.getAttribute("data-unaccented") || name;
+    var index = unac.toLowerCase().indexOf(this.term);
 
     if (index > -1) {
         option.innerHTML = (name.substring(0, index) + "<em>" +
@@ -358,7 +357,7 @@ multiselect.prototype.matchesTerm = function(option) {
 }
 
 multiselect.prototype.lookup = function(term) {
-    var self = this, first = true;
+    var self = this, first = Boolean(term);
     this.term = term.toLowerCase();
     if (!this.term) this.hide();
 
@@ -406,6 +405,8 @@ multiselect.prototype.hide = function() {
 
 multiselect.prototype.buildOptions = function(cacheKey) {
     var doc, self = this;
+    var leadingSpace = /^(\s+)(.+)$/;
+
     if (cacheKey && cache.hasOwnProperty(cacheKey)) {
         doc = cache[cacheKey];
     } else {
@@ -414,8 +415,20 @@ multiselect.prototype.buildOptions = function(cacheKey) {
         while (opt) {
             if (opt.tagName.toLowerCase() == "option") {
                 var a = document.createElement("a");
+                var text = opt.textContent || opt.innerText;
+
+                // <option>s are typically padded with non-breaking spaces to
+                // indicate hierarchy. The spaces cause problems in matchesTerm,
+                // and aren't necessary here, as we can use CSS padding instead.
+                var match = text.match(leadingSpace);
+                if (match) {
+                    a.style.paddingLeft = (match[1].length * 5) + "px";
+                    a.innerHTML = match[2];
+                } else {
+                    a.innerHTML = text;
+                }
+
                 a.href = "#";
-                a.innerHTML = opt.innerHTML;
                 a.setAttribute("data-value", opt.value);
                 if (unac = opt.getAttribute("data-unaccented"))
                     a.setAttribute("data-unaccented", unac);

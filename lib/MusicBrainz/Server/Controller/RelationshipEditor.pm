@@ -34,7 +34,9 @@ sub base : Path('/relationship-editor') Args(0) Edit RequireAuth {
             }
         }
         if ($form->submitted_and_valid($c->req->body_parameters)) {
-            $self->submit_edits($c, $form);
+            $c->model('MB')->with_transaction(sub {
+                $self->submit_edits($c, $form);
+            });
             $c->res->body(encode_json({message => 'OK'}));
         } else {
             $c->res->status(400);
@@ -83,9 +85,6 @@ sub load : Private {
     my $json = JSON->new;
     my $attr_info = build_attr_info($self->attr_tree);
 
-    # unaccent instrument attributes names
-    unaccent_attributes($attr_info->{$_}, $attr_info) for @{ $attr_info->{14}->{children} };
-
     $c->stash(
         attr_info => $json->encode($attr_info),
         type_info => $json->encode($self->build_type_info($c, @{ $form->link_type_tree })),
@@ -125,13 +124,18 @@ sub build_type_info {
 sub build_attr_info {
     my $root = shift;
     sub _build_attr {
-        {
+        my $attr = {
             id   => $_->id,
             name => $_->name,
             l_name => $_->l_name,
             $_->description  ? ( descr    => $_->l_description ) : (),
             $_->all_children ? ( children => _build_children($_, \&_build_attr)) : (),
         };
+        my $unac = decode("utf-16", unac_string_utf16(encode("utf-16", $_->l_name)));
+        if ($unac ne $_->l_name) {
+            $attr->{unaccented} = $unac;
+        }
+        return $attr;
     }
    my %hash = map { $_->name => _build_attr($_) } $root->all_children;
    return \%hash;
@@ -141,18 +145,6 @@ sub _build_children {
     my ($root, $builder) = @_;
     return [ map  { $builder->($_) } sort_by { $_->child_order }
              grep { $_ } $root->all_children ];
-}
-
-sub unaccent_attributes {
-    my ($root, $map) = @_;
-
-    my $unaccented = decode("utf-16", unac_string_utf16(encode("utf-16", $root->{name})));
-    if ($unaccented ne $root->{name}) {
-        $root->{unaccented} = $unaccented;
-    }
-    if (defined $root->{children}) {
-        unaccent_attributes($map->{$_}, $map) for @{ $root->{children} };
-    }
 }
 
 sub build_work_languages {
@@ -199,13 +191,11 @@ sub remove_relationship {
     my $id = $field->field('id')->value;
     my $relationship = $c->stash->{loaded_relationships}->{$types}->{$id};
 
-    $c->model('MB')->with_transaction(sub {
-        $self->_insert_edit(
-            $c, $form,
-            edit_type => $EDIT_RELATIONSHIP_DELETE,
-            relationship => $relationship,
-        );
-    });
+    $self->_insert_edit(
+        $c, $form,
+        edit_type => $EDIT_RELATIONSHIP_DELETE,
+        relationship => $relationship,
+    );
 }
 
 sub add_relationship {

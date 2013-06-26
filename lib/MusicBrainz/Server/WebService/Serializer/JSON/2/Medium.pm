@@ -14,26 +14,28 @@ sub serialize
     $body{title} = $entity->name;
     $body{format} = $entity->format ? $entity->format->name : JSON::null;
 
-    $body{discids} = [ map +{
-        id => $_->cdtoc->discid,
-        sectors => number ($_->cdtoc->leadout_offset)
-    }, sort_by { $_->cdtoc->discid } $entity->all_cdtocs ]
-        if defined $inc && $inc->discids;
+    if (defined $inc && $inc->discids)
+    {
+        $body{discs} = [ map {
+            serialize_entity ($_->cdtoc, $inc, $stash)
+        } sort_by { $_->cdtoc->discid } $entity->all_cdtocs ];
+    }
 
-    $body{"track-count"} = $entity->tracklist->track_count;
+    $body{"track-count"} = $entity->track_count;
 
     # Not all tracks in the tracklists may have been loaded.  If not all
     # tracks have been loaded, only one them will have been loaded which
     # therefore can be represented as if a query had been performed with
     # limit = 1 and offset = track->position.
 
-    my @tracks = nsort_by { $_->position } @{$entity->tracklist->tracks};
+    my @tracks = nsort_by { $_->position } $entity->all_tracks;
     my $min = scalar @tracks ? $tracks[0]->position : 0;
 
     my @list;
     foreach my $track_entity (@tracks)
     {
         my %track_output = (
+            id => $track_entity->gid,
             length => $track_entity->length,
             number => $track_entity->number,
             title => $track_entity->name
@@ -43,7 +45,7 @@ sub serialize
             $track_entity->recording, $inc, $stash)
             if $inc->recordings;
 
-        $track_output{artist_credit} = serialize_entity (
+        $track_output{"artist-credit"} = serialize_entity (
             $track_entity->artist_credit, $inc, $stash)
             if $inc->artist_credits;
 

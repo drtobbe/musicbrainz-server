@@ -250,7 +250,7 @@ sub find_by_track_artist
                          JOIN medium
                          ON medium.release = release.id
                          JOIN track tr
-                         ON tr.tracklist = medium.tracklist
+                         ON tr.medium = medium.id
                          JOIN artist_credit_name acn
                          ON acn.artist_credit = tr.artist_credit
                      WHERE acn.artist = ?
@@ -334,7 +334,7 @@ sub filter_by_track_artist
                          JOIN medium
                          ON medium.release = release.id
                          JOIN track tr
-                         ON tr.tracklist = medium.tracklist
+                         ON tr.medium = medium.id
                          JOIN artist_credit_name acn
                          ON acn.artist_credit = tr.artist_credit
                      WHERE acn.artist = ?
@@ -432,7 +432,7 @@ sub find_by_recording
                  FROM " . $self->_table . "
                     JOIN release ON release.release_group = rg.id
                     JOIN medium ON medium.release = release.id
-                    JOIN track ON track.tracklist = medium.tracklist
+                    JOIN track ON track.medium = medium.id
                     JOIN recording ON recording.id = track.recording
                  WHERE recording.id = ?
                  ORDER BY
@@ -560,6 +560,7 @@ sub _merge_impl
     $self->c->model('Edit')->merge_entities('release_group', $new_id, @old_ids);
     $self->c->model('Relationship')->merge_entities('release_group', $new_id, @old_ids);
     $self->c->model('ReleaseGroupSecondaryType')->merge_entities ($new_id, @old_ids);
+    $self->c->model('CoverArtArchive')->merge_release_groups($new_id, @old_ids);
 
     merge_table_attributes(
         $self->sql => (
@@ -602,6 +603,87 @@ sub load_meta
         $obj->release_count($row->{release_count});
         $obj->first_release_date(MusicBrainz::Server::Entity::PartialDate->new_from_row($row, 'first_release_date_'));
     }, @_);
+}
+
+sub has_cover_art_set
+{
+    my ($self, $rg_id) = @_;
+
+    my $query = "SELECT release
+            FROM cover_art_archive.release_group_cover_art
+            WHERE release_group = ?";
+
+    return $self->sql->select_single_value ($query, $rg_id);
+}
+
+sub set_cover_art {
+    my ($self, $rg_id, $release_id) = @_;
+
+    $self->sql->do("
+        UPDATE cover_art_archive.release_group_cover_art
+        SET release = ? WHERE release_group = ?;
+        INSERT INTO cover_art_archive.release_group_cover_art (release_group, release)
+        (SELECT ? AS release_group, ? AS release WHERE NOT EXISTS
+            (SELECT 1 FROM cover_art_archive.release_group_cover_art
+             WHERE release_group = ?));",
+        $release_id, $rg_id, $rg_id, $release_id, $rg_id);
+}
+
+sub unset_cover_art {
+    my ($self, $rg_id) = @_;
+
+    $self->sql->do("DELETE FROM cover_art_archive.release_group_cover_art
+                    WHERE release_group = ?", $rg_id);
+}
+
+sub merge_releases {
+    my ($self, $new_id, @old_ids) = @_;
+
+    my $rg_ids = $self->c->sql->select_list_of_hashes (
+        "SELECT release_group, id FROM release WHERE id IN ("
+        . placeholders ($new_id, @old_ids) . ")", $new_id, @old_ids);
+
+    my %release_rg;
+    my %release_group_ids;
+    for my $row (@$rg_ids) {
+        $release_rg{$row->{id}} = $row->{release_group};
+        $release_group_ids{$row->{release_group}} = 1;
+    };
+
+    my @release_group_ids = keys %release_group_ids;
+    my $rg_cover_art = $self->c->sql->select_list_of_hashes (
+        "SELECT release_group, release
+         FROM cover_art_archive.release_group_cover_art
+         WHERE release_group IN (" . placeholders (@release_group_ids) . ")",
+        @release_group_ids);
+
+    my %has_cover_art = map { $_->{release_group} => $_->{release} } @$rg_cover_art;
+
+    my $new_rg = $release_rg{$new_id};
+    for my $old_id (@old_ids)
+    {
+        my $old_rg = $release_rg{$old_id};
+
+        if ($new_rg == $old_rg)
+        {
+            # The new release group is the same as the old release group
+            # - if the release group cover art is set to one of the old ids,
+            #   move it to the new id.
+            $self->set_cover_art ($new_rg, $new_id)
+                if ($has_cover_art{$new_rg} // 0) == $old_id;
+        }
+        else
+        {
+            # The new release group is different from the old release group
+            # - if the old release group cover art is set to the id being moved,
+            #   unset the old cover art
+            $self->unset_cover_art ($old_rg)
+                if ($has_cover_art{$old_rg} // 0) == $old_id;
+
+            # Do not change the new release group cover art, regardless of
+            # whether it is set or not.
+        }
+    }
 }
 
 __PACKAGE__->meta->make_immutable;

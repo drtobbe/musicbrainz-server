@@ -10,7 +10,7 @@
             <link rel="stylesheet" type="text/css" href="/static/styles/debug.css" />
         [%- END -%]
         [%- IF c.user_exists -%]
-          <link type="text/css" rel="stylesheet" href="[% c.uri_for('/static/lib/jquery.ui/themes/base/jquery.ui.all.css') %]" />
+          <link type="text/css" rel="stylesheet" href="[% c.uri_for('/static/lib/jquery.ui/themes/base/jquery-ui.css') %]" />
         [%- END -%]
         <link rel="search" type="application/opensearchdescription+xml" title="[%- l("MusicBrainz: Artist") -%]" href="[% c.uri_for('/static/search_plugins/opensearch/musicbrainz_artist.xml') %]" />
         <link rel="search" type="application/opensearchdescription+xml" title="[%- l("MusicBrainz: Label") -%]" href="[% c.uri_for('/static/search_plugins/opensearch/musicbrainz_label.xml') %]" />
@@ -25,11 +25,17 @@
             </style>
         [%- ELSE -%]
             [%- script_manifest('common.js.manifest') -%]
-            <script type="text/javascript" src="[% c.uri_for('/text.js') %]"></script>
+            <script type="text/javascript" src="
+                [%- lang_hash = current_language;
+                    IF current_language != 'en';
+                        lang_hash = lang_hash _ '-' _ c.model('FileCache').pofile_signature('mb_server', current_language);
+                    END;
+                    c.uri_for('/scripts', lang_hash
+                        c.model('FileCache').template_signature('scripts/text_strings.tt'),
+                        'text.js') -%]"></script>
         [%- END -%]
         <script type="text/javascript">//<![CDATA[
             $(document).ready (function () {
-                $("[placeholder]").mb_placeholder ();
                 [% IF c.user_exists %]
                     MB.Control.RelateTo ();
                 [%- END -%]
@@ -71,7 +77,7 @@
                   <div class="git-branch">
                     [%- l('Running: <span class="tooltip" title="{msg}">{branch} ({sha})</span>',
                          { branch => server_details.git.branch,
-                           msg => server_details.git.msg,
+                           msg => html_escape(server_details.git.msg),
                            sha	  => server_details.git.sha}) -%]
                   </div>
                 [%- END -%]
@@ -120,7 +126,7 @@
         </div>
         [% END %]
 
-        [% IF c.flash.message %]
+        [% IF c.sessionid.defined AND c.flash.message %]
             <div class="flash">
                 <p>
                     [% c.flash.message %]
@@ -136,7 +142,7 @@
         </div>
 
         [%- INCLUDE 'layout/merge-helper.tt'
-           IF c.session.merger AND !hide_merge_helper -%]
+           IF c.try_get_session('merger') AND !hide_merge_helper -%]
 
         <div id="footer">
             <p class="left">
@@ -144,8 +150,10 @@
                 <a href="http://wiki.musicbrainz.org/" class="internal">[% l('Wiki') %]</a> |
                 <a href="http://forums.musicbrainz.org/" class="internal">[% l('Forums') %]</a> |
                 <a href="http://tickets.musicbrainz.org/" class="internal">[% l('Bug Tracker') %]</a> |
-                <a href="http://twitter.com/MusicBrainz" class="internal">[% l('Twitter') %]</a> |
-                <a href="http://www.cafepress.com/musicbrainz" class="internal">[% l('Schwag') %]</a>
+                <a href="http://twitter.com/MusicBrainz" class="internal">[% l('Twitter') %]</a>
+                [%- IF server_details.beta_redirect %] |
+                <a href="[% c.uri_for('/set-beta-preference') %]" class="internal">[% server_details.is_beta ? l('Stop using beta site') : l('Use beta site') %]</a>
+                [%- END -%]
             </p>
 
             <p class="right">
@@ -154,7 +162,7 @@
                     { host => 'http://digitalwest.net/',
                       url1 => 'http://www.google.com/',
                       url2 => 'http://osuosl.org/',
-                      more => doc_link('About/Sponsors'),
+                      more => 'http://metabrainz.org/doc/Sponsors',
                       caa  => 'http://coverartarchive.org/' }) %]
             </p>
         </div>
@@ -162,7 +170,7 @@
         [%- BLOCK invisible_content -%][%- END -%]
         [% INCLUDE invisible_content %]
 
-        [%- IF c.session.tport -%]
+        [%- IF c.try_get_session('tport') -%]
             <iframe name="tagger-iframe" height="0" width="0" frameborder="0"></iframe>
         [%- END -%]
     </body>

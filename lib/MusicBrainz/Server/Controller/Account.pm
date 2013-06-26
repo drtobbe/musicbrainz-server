@@ -78,7 +78,7 @@ sub verify_email : Path('/verify-email') ForbiddenOnSlaves
         $c->detach;
     }
 
-    if (($time + &DBDefs::EMAIL_VERIFICATION_TIMEOUT) < time()) {
+    if (($time + DBDefs->EMAIL_VERIFICATION_TIMEOUT) < time()) {
         $c->stash(
             message => l('Sorry, this email verification link has expired.'),
             template => 'account/verify_email_error.tt',
@@ -110,7 +110,7 @@ sub verify_email : Path('/verify-email') ForbiddenOnSlaves
 sub _reset_password_checksum
 {
     my ($self, $id, $time) = @_;
-    return sha1_base64("reset_password $id $time " . DBDefs::SMTP_SECRET_CHECKSUM);
+    return sha1_base64("reset_password $id $time " . DBDefs->SMTP_SECRET_CHECKSUM);
 }
 
 sub _send_password_reset_email
@@ -154,12 +154,17 @@ sub lost_password : Path('/lost-password') ForbiddenOnSlaves
         my $email = $form->field('email')->value;
 
         my $editor = $c->model('Editor')->get_by_name($username);
+
         if (!defined $editor) {
             $form->field('username')->add_error(l('There is no user with this username'));
         }
         else {
-            if ($editor->email && $editor->email ne $email) {
+            # HTML::FormHandler::Field::Email lowercases the email, so we should compare the lowercase version (MBS-6158)
+            if ($editor->email && lc($editor->email) ne lc($email)) {
                 $form->field('email')->add_error(l('There is no user with this username and email'));
+            }
+            elsif (!$editor->email) {
+                $form->field('email')->add_error(l('We can\'t send a password reset email, because we have no email on record for this user.'));
             }
             else {
                 $self->_send_password_reset_email($c, $editor);
@@ -194,7 +199,7 @@ sub reset_password : Path('/reset-password') ForbiddenOnSlaves
         $c->detach;
     }
 
-    if ($time + &DBDefs::EMAIL_VERIFICATION_TIMEOUT < time()) {
+    if ($time + DBDefs->EMAIL_VERIFICATION_TIMEOUT < time()) {
         $c->stash(
             message => l('Sorry, this password reset link has expired.'),
             template => 'account/reset_password_error.tt',
@@ -225,7 +230,7 @@ sub reset_password : Path('/reset-password') ForbiddenOnSlaves
     if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
 
         my $password = $form->field('password')->value;
-        $c->model('Editor')->update_password($editor, $password);
+        $c->model('Editor')->update_password($editor->name, $password);
 
         $c->model('Editor')->load_preferences($editor);
         my $user = MusicBrainz::Server::Authentication::User->new_from_editor($editor);
@@ -290,6 +295,7 @@ sub edit : Local RequireAuth
     }
 
     my $editor = $c->model('Editor')->get_by_id($c->user->id);
+    $c->model('Area')->load($editor);
     $c->model('EditorLanguage')->load_for_editor($editor);
 
     my $form = $c->form( form => 'User::EditProfile', init_object => $editor );
@@ -332,21 +338,32 @@ when use to update the database data when we receive a valid POST request.
 
 =cut
 
-sub change_password : Path('/account/change-password') RequireAuth
+sub change_password : Path('/account/change-password')
 {
     my ($self, $c) = @_;
 
     if (exists $c->request->params->{ok}) {
-        $c->stash(template => 'account/change_password_ok.tt');
+        $c->flash->{message} = l('Your password has been changed.');
+        $c->response->redirect($c->uri_for_action('/user/login'));
+
         $c->detach;
     }
 
-    my $form = $c->form( form => 'User::ChangePassword' );
+    $c->stash( mandatory => $c->req->query_params->{mandatory} );
+
+    my $form = $c->form(
+        form => 'User::ChangePassword',
+        init_object => {
+            username => $c->user_exists
+                ? $c->user->name
+                : ($c->req->query_parameters->{username} // '')
+        }
+    );
 
     if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
-
         my $password = $form->field('password')->value;
-        $c->model('Editor')->update_password($c->user, $password);
+        $c->model('Editor')->update_password(
+            $form->field('username')->value, $password);
 
         $c->response->redirect($c->uri_for_action('/account/change_password', { ok => 1 }));
         $c->detach;
@@ -393,7 +410,7 @@ new user.
 
 =cut
 
-sub register : Path('/register') ForbiddenOnSlaves
+sub register : Path('/register') ForbiddenOnSlaves RequireSSL
 {
     my ($self, $c) = @_;
 
@@ -402,8 +419,8 @@ sub register : Path('/register') ForbiddenOnSlaves
     my $captcha = Captcha::reCAPTCHA->new;
     my $captcha_result;
     my $use_captcha = ($c->req->address &&
-                       defined DBDefs::RECAPTCHA_PUBLIC_KEY &&
-                       defined DBDefs::RECAPTCHA_PRIVATE_KEY);
+                       defined DBDefs->RECAPTCHA_PUBLIC_KEY &&
+                       defined DBDefs->RECAPTCHA_PRIVATE_KEY);
 
     if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
 
@@ -414,7 +431,7 @@ sub register : Path('/register') ForbiddenOnSlaves
             my $response = $c->req->params->{recaptcha_response_field};
 
             $captcha_result = $captcha->check_answer (
-                &DBDefs::RECAPTCHA_PRIVATE_KEY,
+                DBDefs->RECAPTCHA_PRIVATE_KEY,
                 $c->req->address, $challenge, $response);
 
             $valid = $captcha_result->{is_valid};
@@ -454,7 +471,7 @@ sub register : Path('/register') ForbiddenOnSlaves
 
     my $captcha_html = "";
     $captcha_html = $captcha->get_html (
-        &DBDefs::RECAPTCHA_PUBLIC_KEY, $captcha_result) if $use_captcha;
+        DBDefs->RECAPTCHA_PUBLIC_KEY, $captcha_result, $c->req->secure) if $use_captcha;
 
     $c->stash(
         use_captcha   => $use_captcha,
@@ -521,7 +538,7 @@ sub _send_confirmation_email
 sub _checksum
 {
     my ($self, $email, $uid, $time) = @_;
-    return sha1_base64("$email $uid $time " . DBDefs::SMTP_SECRET_CHECKSUM);
+    return sha1_base64("$email $uid $time " . DBDefs->SMTP_SECRET_CHECKSUM);
 }
 
 sub donation : Local RequireAuth HiddenOnSlaves
@@ -535,6 +552,97 @@ sub donation : Local RequireAuth HiddenOnSlaves
         nag => $result->{nag},
         days => sprintf ("%.0f", $result->{days}),
     );
+}
+
+sub applications : Path('/account/applications') RequireAuth
+{
+    my ($self, $c) = @_;
+
+    my $tokens = $self->_load_paged($c, sub {
+        my ($tokens, $hits) = $c->model('EditorOAuthToken')->find_granted_by_editor($c->user->id, shift, shift);
+        return ($tokens, $hits);
+    }, prefix => 'tokens_');
+    $c->model('Application')->load(@$tokens);
+
+    my $applications = $self->_load_paged($c, sub {
+        my ($applications, $hits) = $c->model('Application')->find_by_owner($c->user->id, shift, shift);
+        return ($applications, $hits);
+    }, prefix => 'apps_');
+
+    $c->stash( tokens => $tokens, applications => $applications );
+}
+
+sub revoke_application_access : Path('/account/applications/revoke-access') Args(2) RequireAuth
+{
+    my ($self, $c, $application_id, $scope) = @_;
+
+    my $form = $c->form( form => 'SubmitCancel' );
+    if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
+        $c->model('MB')->with_transaction(sub {
+            $c->model('EditorOAuthToken')->revoke_access($c->user->id, $application_id, $scope);
+        });
+        $c->response->redirect($c->uri_for_action('/account/applications'));
+        $c->detach;
+    }
+}
+
+sub register_application : Path('/account/applications/register') RequireAuth
+{
+    my ($self, $c) = @_;
+
+    my $form = $c->form( form => 'Application' );
+    if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
+        $c->model('MB')->with_transaction(sub {
+            $c->model('Application')->insert({
+                owner_id => $c->user->id,
+                name => $form->field('name')->value,
+                oauth_redirect_uri => $form->field('oauth_redirect_uri')->value,
+            });
+        });
+        $c->response->redirect($c->uri_for_action('/account/applications'));
+        $c->detach;
+    }
+}
+
+sub edit_application : Path('/account/applications/edit') Args(1) RequireAuth
+{
+    my ($self, $c, $id) = @_;
+
+    my $application = $c->model('Application')->get_by_id($id);
+    $c->detach('/error_404')
+        unless defined $application && $application->owner_id == $c->user->id;
+
+    $c->stash( application => $application );
+
+    my $form = $c->form( form => 'Application', init_object => $application );
+    if ($c->form_posted && $form->submitted_and_valid($c->req->params) && $form->field('oauth_type')->value eq $application->oauth_type) {
+        $c->model('MB')->with_transaction(sub {
+            $c->model('Application')->update($application->id, {
+                name => $form->field('name')->value,
+                oauth_redirect_uri => $form->field('oauth_redirect_uri')->value,
+            });
+        });
+        $c->response->redirect($c->uri_for_action('/account/applications'));
+        $c->detach;
+    }
+}
+
+sub remove_application : Path('/account/applications/remove') Args(1) RequireAuth
+{
+    my ($self, $c, $id) = @_;
+
+    my $application = $c->model('Application')->get_by_id($id);
+    $c->detach('/error_404')
+        unless defined $application && $application->owner_id == $c->user->id;
+
+    my $form = $c->form( form => 'SubmitCancel' );
+    if ($c->form_posted && $form->submitted_and_valid($c->req->params)) {
+        $c->model('MB')->with_transaction(sub {
+            $c->model('Application')->delete($application->id);
+        });
+        $c->response->redirect($c->uri_for_action('/account/applications'));
+        $c->detach;
+    }
 }
 
 __PACKAGE__->meta->make_immutable;

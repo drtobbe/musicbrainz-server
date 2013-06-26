@@ -37,7 +37,7 @@ use MusicBrainz::Server::Replication ':replication_type';
 
 use aliased 'MusicBrainz::Server::DatabaseConnectionFactory' => 'Databases';
 
-my $REPTYPE = &DBDefs::REPLICATION_TYPE;
+my $REPTYPE = DBDefs->REPLICATION_TYPE;
 
 my $psql = "psql";
 my $path_to_pending_so;
@@ -252,7 +252,7 @@ sub CreateRelations
     $ENV{"PGPASSWORD"} = $DB->password;
 
     system(sprintf("echo \"CREATE SCHEMA %s\" | $psql $opts", $_))
-        for ($DB->schema, 'cover_art_archive', 'report', 'statistics');
+        for ($DB->schema, 'cover_art_archive', 'documentation', 'report', 'statistics', 'wikidocs');
     die "\nFailed to create schema\n" if ($? >> 8);
 
     if (GetPostgreSQLVersion () >= version->parse ("v9.1"))
@@ -268,8 +268,10 @@ sub CreateRelations
 
     RunSQLScript($DB, "CreateTables.sql", "Creating tables ...");
     RunSQLScript($DB, "caa/CreateTables.sql", "Creating tables ...");
+    RunSQLScript($DB, "documentation/CreateTables.sql", "Creating documentation tables ...");
     RunSQLScript($DB, "report/CreateTables.sql", "Creating tables ...");
     RunSQLScript($DB, "statistics/CreateTables.sql", "Creating statistics tables ...");
+    RunSQLScript($DB, "wikidocs/CreateTables.sql", "Creating wikidocs tables ...");
 
     if ($import)
     {
@@ -285,7 +287,9 @@ sub CreateRelations
 
     RunSQLScript($DB, "CreatePrimaryKeys.sql", "Creating primary keys ...");
     RunSQLScript($DB, "caa/CreatePrimaryKeys.sql", "Creating CAA primary keys ...");
+    RunSQLScript($DB, "documentation/CreatePrimaryKeys.sql", "Creating documentation primary keys ...");
     RunSQLScript($DB, "statistics/CreatePrimaryKeys.sql", "Creating statistics primary keys ...");
+    RunSQLScript($DB, "wikidocs/CreatePrimaryKeys.sql", "Creating wikidocs primary keys ...");
 
     RunSQLScript($SYSMB, "CreateSearchConfiguration.sql", "Creating search configuration ...");
     RunSQLScript($DB, "CreateFunctions.sql", "Creating functions ...");
@@ -325,11 +329,13 @@ sub CreateRelations
     {
         CreateReplicationFunction();
         RunSQLScript($DB, "CreateReplicationTriggers.sql", "Creating replication triggers ...");
-        RunSQLScript($DB, "statistics/CreateReplicationTriggers.sql", "Creating statistics replication triggers ...");
         RunSQLScript($DB, "caa/CreateReplicationTriggers.sql", "Creating CAA replication triggers ...");
+        RunSQLScript($DB, "documentation/CreateReplicationTriggers.sql", "Creating documentation replication triggers ...");
+        RunSQLScript($DB, "statistics/CreateReplicationTriggers.sql", "Creating statistics replication triggers ...");
+        RunSQLScript($DB, "wikidocs/CreateReplicationTriggers.sql", "Creating wikidocs replication triggers ...");
     }
     if ($REPTYPE == RT_MASTER || $REPTYPE == RT_SLAVE)
-	{
+    {
         RunSQLScript($DB, "ReplicationSetup.sql", "Setting up replication ...");
     }
 
@@ -421,7 +427,7 @@ Options are:
   -q, --quiet            Don't show the output of any SQL scripts
   -h --help              This help
   --with-pending=PATH    For use only if this is a master replication server
-                         (DBDefs::REPLICATION_TYPE==RT_MASTER).  PATH specifies
+                         (DBDefs->REPLICATION_TYPE==RT_MASTER).  PATH specifies
                          the path to "pending.so" (on the database server).
      --fix-broken-utf8   replace invalid UTF-8 byte sequences with the special
                          Unicode "replacement character" U+FFFD.

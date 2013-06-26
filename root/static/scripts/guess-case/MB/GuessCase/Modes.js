@@ -40,8 +40,8 @@ MB.GuessCase.Modes = function (language) {
      * Set mode.
      **/
     var setMode = function (mode) {
-        self.dropdown.find ('option:selected').removeAttr ('selected');
-        self.dropdown.find ('option:contains(' + mode + ')').attr ('selected', 'selected');
+        self.dropdown.find ('option:selected').prop ('selected', false);
+        self.dropdown.find ('option:contains(' + mode + ')').prop ('selected', true);
 
         return getMode ();
     };
@@ -64,7 +64,7 @@ MB.GuessCase.Modes = function (language) {
         self.dropdown = $('#gc-mode');
         self.dropdown.empty ();
 
-        $.each (['English', 'Sentence', 'French', 'Classical'], function (idx, mode) {
+        $.each (['English', 'Sentence', 'French'], function (idx, mode) {
             if (typeof MB.GuessCase.Mode[mode] !== "undefined")
             {
                 self.modes.push (MB.GuessCase.Mode[mode] (self));
@@ -83,7 +83,7 @@ MB.GuessCase.Modes = function (language) {
             option.data ('mb.guesscase.mode', mode);
             if (mode.getName () === selected)
             {
-                option.attr('selected', true);
+                option.prop('selected', true);
             }
 
             self.dropdown.append (option);
@@ -98,7 +98,7 @@ MB.GuessCase.Modes = function (language) {
     self.setMode = setMode;
     self.updateMode = updateMode;
 
-    self.artist_mode = (typeof MB.GuessCase.Mode.Artist === "undefined") ? 
+    self.artist_mode = (typeof MB.GuessCase.Mode.Artist === "undefined") ?
         null : MB.GuessCase.Mode.Artist (self);
     self.dropdown = $('#gc-mode');
 

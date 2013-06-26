@@ -40,8 +40,8 @@
 
       [%# FIXME: should only be editable on Add Release. %]
       [% IF !release_group %]
-        [% form_row_select (r, 'primary_type_id', l('Type:')) %]
-        [% form_row_select (r, 'secondary_type_ids', l('Extra Types:')) %]
+        [% form_row_select (r, 'primary_type_id', l('Primary Type:')) %]
+        [% form_row_select (r, 'secondary_type_ids', l('Secondary Types:')) %]
       [% ELSE %]
         <div class="row">
           <div class="label">[% l('Type:') %]</div>
@@ -61,47 +61,76 @@
     <fieldset>
       <legend>[% l('Release event') %]</legend>
 
-      [% WRAPPER form_row %]
-         <label for="release-date">[% l('Date:') %]</label>
-         [% r.date('date') %]
-      [% END %]
-      [% field_errors(r.form, 'date') %]
-
-      [% form_row_select (r, 'country_id', l('Country:')) %]
-      [% form_row_select (r, 'packaging_id', l('Packaging:')) %]
-
-      <div class="label-container" style="padding: 0.5em 0">
-        [% FOR field=form.field('labels').fields %]
-        <div class="release-label">
-          [%- r.label(field.field('name'), l('Label:'), class => 'label-name') -%]
-          <span class="label autocomplete">
-            <img class="search" src="[% c.uri_for("/static/images/icons/search.png") %]" />
-            [% label_id = field.field('label_id').value %]
-            [% label = labels_by_id.$label_id %]
-            <input type="hidden" class="gid" value="[% label.gid | html %]" />
-            <input type="hidden" class="comment" value="[% label.comment | html %]" />
-            <input type="hidden" class="sortname" value="[% label.sort_name | html %]" />
-            [%- r.hidden(field.field('label_id'), class => 'id') -%]
-            [%- r.text(field.field('name'), class => 'name') -%]
-          </span>
-          [%- r.label(field.field('catalog_number'), l('Cat.No:'), class => 'catno') -%]
-          [%- r.text (field.field('catalog_number'), class => 'catno' ) -%]
-
-          <span class="remove-label">
-            [%- r.hidden(field.field('deleted')) -%]
-            <a class="icon remove-label" href="#remove_label">
-              <img src="[% c.uri_for('/static/images/icons/delete_row.png') %]" title="[% l('Remove Label') %]" alt="[% l('Remove Label') %]" />
-            </a>
-          </span>
-
+      <div class="event-container" style="padding: 0.5em 0">
+        [% FOR field=form.field('events').fields %]
+        <div class="release-event">
+           [% WRAPPER form_row %]
+              [%- date = field.field('date');
+              r.label(date, l('Date:'), class => 'date');
+              r.date(date); -%]
+           [% END %]
+           [% WRAPPER form_row %]
+              [%- country_id = field.field('country_id');
+              r.label(country_id, l('Country:'), class => 'country_id' );
+              r.select(country_id, class => 'country_select' ); -%]
+              <span class="remove-event">
+                [%- r.hidden(field.field('deleted')) -%]
+                <a class="icon remove-event" href="#remove_event">
+                  <div class="icon img" title="[% l('Remove Event') %]"></div>
+                </a>
+              </span>
+            [% END %]
+          [%- field_errors(r.form, country_id);
+              field_errors(r.form, date) %]
         </div>
         [% END %]
 
         [% WRAPPER form_row %]
+          <div class="add-event" style="text-align: right; width: 100%; ">
+            <span class="add-event" style="padding: 0 1em;">[% lp('Add Event', 'header') %]</span>
+            <a class="icon add-event" href="#add_event" style="margin-right: 14px;">
+              <div class="icon img" title="[% lp('Add Event', 'button/menu') %]"></div>
+            </a>
+          </div>
+        [% END %]
+      </div>
+
+      [% form_row_select (r, 'packaging_id', l('Packaging:')) %]
+
+      <div class="label-container" style="padding: 0.5em 0">
+        [% FOR field=form.field('labels').fields %]
+          [% WRAPPER form_row %]
+           <div class="release-label">
+            [%- r.label(field.field('name'), l('Label:'), class => 'label-name') -%]
+            <span class="label autocomplete">
+              <img class="search" src="[% c.uri_for("/static/images/icons/search.png") %]" />
+              [% label_id = field.field('label_id').value %]
+              [% label = labels_by_id.$label_id %]
+              <input type="hidden" class="gid" value="[% label.gid | html %]" />
+              <input type="hidden" class="comment" value="[% label.comment | html %]" />
+              <input type="hidden" class="sortname" value="[% label.sort_name | html %]" />
+              [%- r.hidden(field.field('label_id'), class => 'id') -%]
+              [%- r.text(field.field('name'), class => 'name') -%]
+            </span>
+            [%- r.label(field.field('catalog_number'), l('Cat. No:'), class => 'catno') -%]
+            [%- r.text (field.field('catalog_number'), class => 'catno' ) -%]
+
+            <span class="remove-label">
+              [%- r.hidden(field.field('deleted')) -%]
+              <a class="icon remove-label" href="#remove_label">
+                <div class="icon img" title="[% l('Remove Label') %]"></div>
+              </a>
+            </span>
+
+           </div>
+          [% END %]
+        [% END %]
+
+        [% WRAPPER form_row %]
           <div class="add-label" style="text-align: right; width: 100%; ">
-            <span class="add-label" style="padding: 0 1em;">[% l('Add Label') %]</span>
+            <span class="add-label" style="padding: 0 1em;">[% lp('Add Label', 'header') %]</span>
             <a class="icon add-label" href="#add_label" style="margin-right: 14px;">
-              <img src="[% c.uri_for('/static/images/icons/add_row.png') %]" title="[% l('Add Label') %]" alt="[% l('Add Label') %]" />
+              <div class="icon img" title="[% lp('Add Label', 'button/menu') %]"></div>
             </a>
           </div>
         [% END %]
@@ -150,7 +179,8 @@
     <div class="packaging-container" style="display: none">
       <div class="packaging bubble">
         <p>
-          [% l('Review the {doc|list of packaging types} for help.', { doc => doc_link('Release/Packaging') }) %]
+          [% l('Review the <a href="{url}" target="_blank">list of packaging types</a> for help.',
+               { url => doc_link('Release/Packaging') }) %]
         </p>
      </div>
     </div>
@@ -174,7 +204,8 @@
     <div class="barcode-container" style="display: none">
       <div class="barcode bubble">
        <p>
-          [% l('Please enter the barcode of the release you are entering, see <a href="{url}">Barcode</a> for more information.', { url => c.uri_for('/doc/Barcode') }) %]
+          [% l('Please enter the barcode of the release you are entering, see <a href="{url}" target="_blank">Barcode</a> for more information.',
+               { url => doc_link('Barcode') }) %]
        </p>
        <p class="barcode-message"></p>
        <p class="barcode-confirm">
@@ -216,4 +247,3 @@
   </div>
 
 [%- END -%]
-

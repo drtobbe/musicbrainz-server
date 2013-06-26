@@ -36,6 +36,7 @@ sub options_type
         'recording'     => l('Recording'),
         'work'          => l('Work'),
         'label'         => l('Label'),
+        'area'          => l('Area'),
         'annotation'    => l('Annotation'),
         'cdstub'        => l('CD Stub'),
         'editor'        => l('Editor'),
@@ -43,7 +44,7 @@ sub options_type
         'tag'           => lp('Tag', 'noun'),
     );
 
-    push @options, ( 'doc' => l('Documentation') ) if &DBDefs::GOOGLE_CUSTOM_SEARCH;
+    push @options, ( 'doc' => l('Documentation') ) if DBDefs->GOOGLE_CUSTOM_SEARCH;
 
     return \@options;
 }

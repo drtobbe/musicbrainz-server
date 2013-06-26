@@ -147,7 +147,7 @@ $timestamp =~ s/^This snapshot was taken at //;
 print localtime() . " : Snapshot timestamp is $timestamp\n";
 
 # We should also have SCHEMA_SEQUENCE files, which match.  Plus they must
-# match DBDefs::DB_SCHEMA_SEQUENCE.
+# match DBDefs->DB_SCHEMA_SEQUENCE.
 my $SCHEMA_SEQUENCE = read_all_and_check("SCHEMA_SEQUENCE");
 if (not defined $SCHEMA_SEQUENCE)
 {
@@ -155,10 +155,10 @@ if (not defined $SCHEMA_SEQUENCE)
     print STDERR localtime() . " : Don't be surprised if this import fails\n";
     $| = 1, print(chr(7)), sleep 5
         if -t STDOUT;
-} elsif ($SCHEMA_SEQUENCE != &DBDefs::DB_SCHEMA_SEQUENCE) {
+} elsif ($SCHEMA_SEQUENCE != DBDefs->DB_SCHEMA_SEQUENCE) {
     printf STDERR "%s : Schema sequence mismatch - codebase is %d, snapshot files are %d\n",
         scalar localtime,
-        &DBDefs::DB_SCHEMA_SEQUENCE,
+        DBDefs->DB_SCHEMA_SEQUENCE,
         $SCHEMA_SEQUENCE,
         ;
     exit 1;
@@ -337,12 +337,14 @@ sub ImportAllTables
         artist_tag_raw
         cdtoc_raw
         edit
+        edit_area
         edit_artist
         edit_label
         edit_note
         edit_recording
         edit_release
         edit_release_group
+        edit_url
         edit_work
         label_rating_raw
         label_tag_raw
@@ -350,12 +352,24 @@ sub ImportAllTables
         recording_tag_raw
         release_group_rating_raw
         release_group_tag_raw
+        release_tag_raw
         release_raw
         track_raw
         vote
         work_rating_raw
         work_tag_raw
         annotation
+        application
+        area
+        area_type
+        area_alias
+        area_alias_type
+        area_annotation
+        area_gid_redirect
+        country_area
+        iso_3166_1
+        iso_3166_2
+        iso_3166_3
         artist
         artist_alias
         artist_alias_type
@@ -364,23 +378,39 @@ sub ImportAllTables
         artist_credit_name
         artist_gid_redirect
         artist_ipi
+        artist_isni
         artist_meta
         artist_name
         artist_tag
         artist_type
+        autoeditor_election
+        autoeditor_election_vote
         cdtoc
         clientversion
-        country
         editor
-        editor_language
+        editor_oauth_token
         editor_preference
+        editor_language
         editor_sanitised
         editor_subscribe_artist
+        editor_subscribe_collection
         editor_subscribe_editor
         editor_subscribe_label
+        editor_watch_artist
+        editor_watch_preferences
+        editor_watch_release_group_type
+        editor_watch_release_status
         gender
         isrc
         iswc
+        l_area_area
+        l_area_artist
+        l_area_label
+        l_area_recording
+        l_area_release
+        l_area_release_group
+        l_area_url
+        l_area_work
         l_artist_artist
         l_artist_label
         l_artist_recording
@@ -415,6 +445,7 @@ sub ImportAllTables
         label_annotation
         label_gid_redirect
         label_ipi
+        label_isni
         label_meta
         label_name
         label_tag
@@ -422,7 +453,9 @@ sub ImportAllTables
         language
         link
         link_attribute
+        link_attribute_credit
         link_attribute_type
+        link_creditable_attribute_type
         link_type
         link_type_attribute_type
         editor_collection
@@ -439,6 +472,7 @@ sub ImportAllTables
         recording_tag
         release
         release_annotation
+        release_country
         release_gid_redirect
         release_group
         release_group_annotation
@@ -455,21 +489,25 @@ sub ImportAllTables
         release_packaging
         release_status
         release_tag
+        release_unknown_country
         replication_control
         script
         script_language
         tag
         tag_relation
         track
+        track_gid_redirect
         track_name
-        tracklist
-        tracklist_index
+        medium_index
         url
         url_gid_redirect
         work
         work_alias
         work_alias_type
         work_annotation
+        work_attribute
+        work_attribute_type
+        work_attribute_type_allowed_value
         work_gid_redirect
         work_meta
         work_name
@@ -477,18 +515,59 @@ sub ImportAllTables
         work_type
 
         cover_art_archive.art_type
+        cover_art_archive.image_type
         cover_art_archive.cover_art
         cover_art_archive.cover_art_type
         cover_art_archive.release_group_cover_art
 
+        documentation.l_area_area_example
+        documentation.l_area_artist_example
+        documentation.l_area_label_example
+        documentation.l_area_recording_example
+        documentation.l_area_release_example
+        documentation.l_area_release_group_example
+        documentation.l_area_url_example
+        documentation.l_area_work_example
+        documentation.l_artist_artist_example
+        documentation.l_artist_label_example
+        documentation.l_artist_recording_example
+        documentation.l_artist_release_example
+        documentation.l_artist_release_group_example
+        documentation.l_artist_url_example
+        documentation.l_artist_work_example
+        documentation.l_label_label_example
+        documentation.l_label_recording_example
+        documentation.l_label_release_example
+        documentation.l_label_release_group_example
+        documentation.l_label_url_example
+        documentation.l_label_work_example
+        documentation.l_recording_recording_example
+        documentation.l_recording_release_example
+        documentation.l_recording_release_group_example
+        documentation.l_recording_url_example
+        documentation.l_recording_work_example
+        documentation.l_release_group_release_group_example
+        documentation.l_release_group_url_example
+        documentation.l_release_group_work_example
+        documentation.l_release_release_example
+        documentation.l_release_release_group_example
+        documentation.l_release_url_example
+        documentation.l_release_work_example
+        documentation.l_url_url_example
+        documentation.l_url_work_example
+        documentation.l_work_work_example
+        documentation.link_type_documentation
+
         statistics.statistic
         statistics.statistic_event
+
+        wikidocs.wikidocs_index
     )) {
         my $file = (find_file($table))[0];
         $file or print("No data file found for '$table', skipping\n"), next;
         $imported_tables{$table} = 1;
 
-        if (&DBDefs::REPLICATION_TYPE == RT_SLAVE)
+        if (DBDefs->REPLICATION_TYPE == RT_SLAVE)
         {
                 my $basetable = $table;
                 $basetable =~ s/_sanitised$//;
@@ -601,11 +680,11 @@ sub validate_tar
         my $all = do { local $/; <$fh> };
         close $fh;
         chomp($all);
-        if ($all ne &DBDefs::DB_SCHEMA_SEQUENCE)
+        if ($all ne DBDefs->DB_SCHEMA_SEQUENCE)
         {
                 printf STDERR "%s : Schema sequence mismatch - codebase is %d, $tar is %d\n",
                         scalar localtime,
-                        &DBDefs::DB_SCHEMA_SEQUENCE,
+                        DBDefs->DB_SCHEMA_SEQUENCE,
                         $all,
                         ;
                 exit 1;

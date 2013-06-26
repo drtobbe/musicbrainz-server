@@ -1,3 +1,9 @@
+<p>
+  [%- l('An alias is an alternate name for an entity. They typically contain contain
+        common mispellings or variations of the name and are also used to improve search results.
+        View the {doc|alias documentation} for more details.', { doc => doc_link('Aliases') }) -%]
+</p>
+
 <form action="[% c.req.uri %]" method="post" class="edit-alias">
   [% USE r = FormRenderer(form) %]
   <div class="half-width">
@@ -31,7 +37,7 @@
   </div>
 
   <div class="documentation">
-    [%- guesscase_bubble(1) -%]
+    [%- guesscase_bubble(show_guesscase_modes ? 0 : 1) -%]
     [%- sortname_bubble() -%]
   </div>
 </form>
@@ -40,12 +46,7 @@
     function togglePrimaryForLocale() {
         var allowed = $('#id-edit-alias\\\.locale').val() != '';
         $('#allow_primary_for_locale').toggle(allowed);
-        if (allowed) {
-            $('#allow_primary_for_locale input').removeAttr('disabled');
-        }
-        else {
-            $('#allow_primary_for_locale input').attr('disabled', true);
-        }
+        $('#allow_primary_for_locale input').prop('disabled', !allowed);
     }
 
     function denyDataForSearchHints() {
@@ -54,12 +55,8 @@
             .add('#id-edit-alias\\\.primary_for_locale')
             .add('.partial-date input');
 
-        if ($('#id-edit-alias\\\.type_id').val() == [% search_hint_type_id %]) {
-            conditionalFields.attr('disabled', true);
-        }
-        else {
-            conditionalFields.removeAttr('disabled');
-        }
+        conditionalFields.prop('disabled',
+          $('#id-edit-alias\\\.type_id').val() == [% search_hint_type_id %]);
     }
 
     $(function() {

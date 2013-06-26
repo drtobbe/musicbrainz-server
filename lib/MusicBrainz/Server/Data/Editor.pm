@@ -4,11 +4,18 @@ use namespace::autoclean;
 use LWP;
 use URI::Escape;
 
+use Authen::Passphrase;
+use Authen::Passphrase::BlowfishCrypt;
+use Authen::Passphrase::RejectAll;
 use DateTime;
+use Digest::MD5 qw( md5_hex );
+use Encode;
+use Math::Random::Secure qw();
 use MusicBrainz::Server::Constants qw( $STATUS_OPEN );
 use MusicBrainz::Server::Entity::Preferences;
 use MusicBrainz::Server::Entity::Editor;
 use MusicBrainz::Server::Data::Utils qw(
+    generate_gid
     hash_to_row
     load_subobjects
     placeholders
@@ -35,8 +42,8 @@ sub _columns
 {
     return 'editor.id, editor.name, password, privs, email, website, bio,
             member_since, email_confirm_date, last_login_date, edits_accepted,
-            edits_rejected, auto_edits_accepted, edits_failed, gender, country,
-            birth_date';
+            edits_rejected, auto_edits_accepted, edits_failed, gender, area,
+            birth_date, ha1';
 }
 
 sub _column_mapping
@@ -57,8 +64,9 @@ sub _column_mapping
         registration_date       => 'member_since',
         last_login_date         => 'last_login_date',
         gender_id               => 'gender',
-        country_id              => 'country',
-        birth_date              => 'birth_date'
+        area_id                 => 'area',
+        birth_date              => 'birth_date',
+        ha1                     => 'ha1'
     };
 }
 
@@ -219,11 +227,15 @@ sub insert
 {
     my ($self, $data) = @_;
 
+    $data->{password} = hash_password($data->{password});
+    $data->{ha1} = ha1_password($data->{name}, $data->{password});
+
     return Sql::run_in_transaction(sub {
         return $self->_entity_class->new(
             id => $self->sql->insert_row('editor', $data, 'id'),
             name => $data->{name},
             password => $data->{password},
+            ha1 => $data->{ha1},
             accepted_edits => 0,
             rejected_edits => 0,
             failed_edits => 0,
@@ -256,11 +268,13 @@ sub update_email
 
 sub update_password
 {
-    my ($self, $editor, $password) = @_;
+    my ($self, $editor_name, $password) = @_;
 
     Sql::run_in_transaction(sub {
-        $self->sql->do('UPDATE editor SET password=? WHERE id=?',
-                 $password, $editor->id);
+        $self->sql->do('UPDATE editor SET password = ?, ha1 = md5(name || \':musicbrainz.org:\' || ?), last_login_date = now() WHERE name = ?',
+                       hash_password($password),
+                       $password,
+                       $editor_name);
     }, $self->sql);
 }
 
@@ -272,7 +286,7 @@ sub update_profile
         $update,
         {
             bio => 'biography',
-            country => 'country_id',
+            area => 'area_id',
             gender => 'gender_id',
             website => 'website',
             birth_date => 'birth_date',
@@ -301,6 +315,7 @@ sub update_privileges
                 + $values->{bot}              * $BOT_FLAG
                 + $values->{untrusted}        * $UNTRUSTED_FLAG
                 + $values->{link_editor}      * $RELATIONSHIP_EDITOR_FLAG
+                + $values->{location_editor}  * $LOCATION_EDITOR_FLAG
                 + $values->{no_nag}           * $DONT_NAG_FLAG
                 + $values->{wiki_transcluder} * $WIKI_TRANSCLUSION_FLAG
                 + $values->{mbid_submitter}   * $MBID_SUBMITTER_FLAG
@@ -400,7 +415,8 @@ sub donation_check
 
     my $nag = 1;
     $nag = 0 if ($obj->is_nag_free || $obj->is_auto_editor || $obj->is_bot ||
-                 $obj->is_relationship_editor || $obj->is_wiki_transcluder);
+                 $obj->is_relationship_editor || $obj->is_wiki_transcluder ||
+                 $obj->is_location_editor);
 
     my $days = 0.0;
     if ($nag)
@@ -433,6 +449,7 @@ sub editors_with_subscriptions
 
     my @tables = qw(
         editor_subscribe_artist
+        editor_subscribe_collection
         editor_subscribe_editor
         editor_subscribe_label
     );
@@ -461,23 +478,27 @@ sub delete {
     $self->sql->begin;
     $self->sql->do(
         "UPDATE editor SET name = 'Deleted Editor #' || id,
-                           password = '',
+                           password = ?,
+                           ha1 = '',
                            privs = 0,
                            email = NULL,
                            email_confirm_date = NULL,
                            website = NULL,
                            bio = NULL,
-                           country = NULL,
+                           area = NULL,
                            birth_date = NULL,
                            gender = NULL
          WHERE id = ?",
+        Authen::Passphrase::RejectAll->new->as_rfc2307,
         $editor_id
     );
 
     $self->sql->do("DELETE FROM editor_preference WHERE editor = ?", $editor_id);
     $self->c->model('EditorLanguage')->delete_editor($editor_id);
+    $self->c->model('EditorOAuthToken')->delete_editor($editor_id);
 
     $self->c->model('EditorSubscriptions')->delete_editor($editor_id);
+    $self->c->model('Editor')->unsubscribe_to($editor_id);
     $self->c->model('Collection')->delete_editor($editor_id);
     $self->c->model('WatchArtist')->delete_editor($editor_id);
 
@@ -522,8 +543,8 @@ sub subscription_summary {
                 "COALESCE(
                    (SELECT count(*) FROM editor_subscribe_$_ WHERE editor = ?),
                    0) AS $_"
-            } qw( artist label editor )),
-        ($editor_id) x 3
+            } qw( artist collection label editor )),
+        ($editor_id) x 4
     );
 }
 
@@ -551,6 +572,68 @@ sub last_24h_edit_count
        ";
 
     return $self->sql->select_single_value($query, $editor_id);
+}
+
+sub unsubscribe_to {
+    my ($self, $editor_id) = @_;
+    $self->sql->do(
+        'DELETE FROM editor_subscribe_editor WHERE subscribed_editor = ?',
+        $editor_id);
+}
+
+sub update_last_login_date {
+    my ($self, $editor_id) = @_;
+    $self->sql->auto_commit(1);
+    $self->sql->do('UPDATE editor SET last_login_date = now() WHERE id = ?', $editor_id);
+}
+
+sub hash_password {
+    my $password = shift;
+    Authen::Passphrase::BlowfishCrypt->new(
+        salt_random => 1,
+        cost => 10,
+        passphrase => encode('utf-8', $password)
+    )->as_rfc2307
+}
+
+sub ha1_password {
+    my ($username, $password) = @_;
+    return md5_hex(join(':', $username, 'musicbrainz.org', $password));
+}
+
+sub consume_remember_me_token {
+    my ($self, $user_name, $token) = @_;
+
+    my $token_key = "$user_name|$token";
+    # Expire consumed tokens in 5 minutes. This allows the case where the user
+    # has no session, and opens multiple tabs using the same remember_me token.
+    $self->redis->expire($token_key, 5 * 60);
+    $self->redis->exists($token_key);
+}
+
+sub allocate_remember_me_token {
+    my ($self, $user_name) = @_;
+
+    if (
+        $self->sql->select_single_value(
+            'SELECT TRUE FROM editor WHERE name = ?',
+            $user_name
+        )
+    ) {
+        # Generate a 128-bit token. irand is 32-bit.
+        my $token = join('', map { '' . Math::Random::Secure::irand() } (0 .. 3));
+
+        my $key = "$user_name|$token";
+        $self->redis->add($key, 1);
+
+        # Expire tokens after 1 year.
+        $self->redis->expire($key, 60 * 60 * 24 * 7 * 52);
+
+        return $token;
+    }
+    else {
+        return undef;
+    }
 }
 
 no Moose;

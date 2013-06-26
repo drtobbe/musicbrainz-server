@@ -8,14 +8,12 @@ use Net::CoverArtArchive qw( find_available_artwork );
 use Net::CoverArtArchive::CoverArt;
 use Time::HiRes qw( time );
 
-my $caa = Net::CoverArtArchive->new (cover_art_archive_prefix => &DBDefs::COVER_ART_ARCHIVE_DOWNLOAD_PREFIX);
+my $caa = Net::CoverArtArchive->new (cover_art_archive_prefix => DBDefs->COVER_ART_ARCHIVE_DOWNLOAD_PREFIX);
 
 sub find_available_artwork {
     my ($self, $mbid) = @_;
 
-    my $prefix = DBDefs::COVER_ART_ARCHIVE_DOWNLOAD_PREFIX."/release/$mbid";
-
-    my $types = { map { $_->name => $_ } $self->c->model('CoverArtType')->get_all() };
+    my $prefix = DBDefs->COVER_ART_ARCHIVE_DOWNLOAD_PREFIX."/release/$mbid";
 
     return [
         map {
@@ -25,11 +23,7 @@ sub find_available_artwork {
                 large_thumbnail => sprintf('%s/%s-500.jpg', $prefix, $_->{id}),
                 small_thumbnail => sprintf('%s/%s-250.jpg', $prefix, $_->{id}),
             );
-        } map {
-            $_->{types} = [ map { $types->{$_}->l_name } @{ $_->{types} } ];
-            $_;
-        }
-        @{ $self->sql->select_list_of_hashes(
+        } @{ $self->sql->select_list_of_hashes(
             'SELECT index_listing.*, release.gid
              FROM cover_art_archive.index_listing
              JOIN musicbrainz.release ON index_listing.release = release.id
@@ -38,6 +32,18 @@ sub find_available_artwork {
         ) }
     ];
 };
+
+sub get_stats_for_release {
+    my ($self, $release_id) = @_;
+    my $stats = $self->sql->select_list_of_hashes(
+    'SELECT COUNT(*) total,
+            bool_or(is_front) front,
+            bool_or(is_back) back
+     FROM cover_art_archive.index_listing
+     WHERE release = ?',
+     $release_id);
+    return $stats->[0];
+}
 
 sub fresh_id {
     return int((time() - 1327528905) * 100);
@@ -53,37 +59,44 @@ sub post_fields
 {
     my ($self, $bucket, $mbid, $id, $redirect) = @_;
 
-    my $aws_id = &DBDefs::COVER_ART_ARCHIVE_ID;
-    my $aws_key = &DBDefs::COVER_ART_ARCHIVE_KEY;
+    my $access_key = DBDefs->COVER_ART_ARCHIVE_ACCESS_KEY;
+    my $secret_key = DBDefs->COVER_ART_ARCHIVE_SECRET_KEY;
 
     my $policy = Net::Amazon::S3::Policy->new(expiration => int(time()) + 3600);
     my $filename = "mbid-$mbid-" . $id . '.jpg';
+
+    my %extra_fields = (
+        "x-archive-auto-make-bucket" => 1,
+        "x-archive-meta-collection" => 'coverartarchive',
+        "x-archive-meta-mediatype" => 'image',
+    );
 
     $policy->add ({'bucket' => $bucket});
     $policy->add ({'acl' => 'public-read'});
     $policy->add ({'success_action_redirect' => $redirect});
     $policy->add ('$key eq '.$filename);
     $policy->add ('$content-type starts-with image/jpeg');
-    $policy->add ('x-archive-auto-make-bucket eq 1');
-    $policy->add ('x-archive-meta-collection eq coverartarchive');
-    $policy->add ('x-archive-meta-mediatype eq images');
+
+    for my $field (keys %extra_fields) {
+        $policy->add("$field eq " . $extra_fields{$field});
+    }
 
     return {
-        AWSAccessKeyId => $aws_id,
+        AWSAccessKeyId => $access_key,
         policy => $policy->base64(),
-        signature => $policy->signature_base64($aws_key),
+        signature => $policy->signature_base64($secret_key),
         key => $filename,
         acl => 'public-read',
         "content-type" => 'image/jpeg',
         success_action_redirect => $redirect,
-        "x-archive-auto-make-bucket" => 1,
-        "x-archive-meta-collection" => 'coverartarchive',
-        "x-archive-meta-mediatype" => 'images',
+        %extra_fields
     };
 }
 
 sub insert_cover_art {
     my ($self, $release_id, $edit, $cover_art_id, $position, $types, $comment) = @_;
+
+    my $mime_type = 'image/jpeg';
 
     # make sure the $cover_art_position slot is available.
     $self->sql->do(
@@ -93,9 +106,9 @@ sub insert_cover_art {
         $release_id, $position);
 
     $self->sql->do(
-        'INSERT INTO cover_art_archive.cover_art (release, edit, ordering, id, comment)
-         VALUES (?, ?, ?, ?, ?)',
-        $release_id, $edit, $position, $cover_art_id, $comment);
+        'INSERT INTO cover_art_archive.cover_art (release, mime_type, edit, ordering, id, comment)
+         VALUES (?, ?, ?, ?, ?, ?)',
+        $release_id, $mime_type, $edit, $position, $cover_art_id, $comment);
 
     for my $type_id (@$types)
     {
@@ -148,6 +161,13 @@ sub delete {
 sub merge_releases {
     my ($self, $new_release, @old_releases) = @_;
 
+    # cover_art_presence enum has 'darkened' as max, and 'absent' as min,
+    # so we always want the highest value to be preserved
+    $self->sql->do(
+        "UPDATE release_meta SET cover_art_presence = (SELECT max(cover_art_presence)
+           FROM release_meta WHERE id = any(?))
+           WHERE id = ?", [ $new_release, @old_releases ], $new_release);
+
     for my $old_release (@old_releases) {
         $self->sql->do(
             'UPDATE cover_art_archive.cover_art
@@ -161,6 +181,31 @@ sub merge_releases {
             $new_release,
             $old_release);
     }
+}
+
+sub merge_release_groups {
+    my ($self, $new_release_group_id, @old_release_groups) = @_;
+
+    my $all_ids = [ $new_release_group_id, @old_release_groups ];
+    $self->sql->do('
+      DELETE FROM cover_art_archive.release_group_cover_art
+      WHERE release_group = any(?) AND release_group NOT IN (
+        SELECT release_group
+        FROM cover_art_archive.release_group_cover_art
+        WHERE release_group = any(?)
+        ORDER BY (release_group = ?) DESC
+        LIMIT 1
+      )',
+        $all_ids,
+        $all_ids,
+        $new_release_group_id
+    );
+
+    $self->sql->do('
+        UPDATE cover_art_archive.release_group_cover_art SET release_group = ?
+        WHERE release_group = any(?)',
+        $new_release_group_id, $all_ids
+    );
 }
 
 sub exists {

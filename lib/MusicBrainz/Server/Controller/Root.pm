@@ -18,7 +18,7 @@ use aliased 'MusicBrainz::Server::Translation';
 __PACKAGE__->config->{namespace} = '';
 
 with 'MusicBrainz::Server::Controller::Role::Profile' => {
-    threshold => DBDefs::PROFILE_SITE()
+    threshold => DBDefs->PROFILE_SITE()
 };
 
 =head1 NAME
@@ -41,9 +41,14 @@ other than the blog feed.
 sub index : Path Args(0)
 {
     my ($self, $c) = @_;
+
+    my @newest_releases = $c->model('Release')->newest_releases_with_artwork;
+    $c->model('ArtistCredit')->load(map { $_->{release} } @newest_releases);
+
     $c->stash(
         blog => $c->model('Blog')->get_latest_entries,
-        template => 'main/index.tt'
+        template => 'main/index.tt',
+        releases => \@newest_releases
     );
 }
 
@@ -60,10 +65,38 @@ sub set_language : Path('set-language') Args(1)
         # force the cookie to expire
         $c->res->cookies->{lang} = { 'value' => '', 'path' => '/', 'expires' => time()-86400 };
     } else {
-        $c->res->cookies->{lang} = { 'value' => $lang, 'path' => '/' };
+        # set the cookie to expire in a year
+        $c->set_language_cookie($lang);
     }
     $c->res->redirect($c->req->referer || $c->uri_for('/'));
     $c->detach;
+}
+
+=head2 set_beta_preference
+
+Sets the preference for using the beta site, used from the footer.
+
+=cut
+
+sub set_beta_preference : Path('set-beta-preference') Args(0)
+{
+    my ($self, $c) = @_;
+    if (DBDefs->BETA_REDIRECT_HOSTNAME) {
+        my $new_url;
+        # Set URL to go to
+        if (DBDefs->IS_BETA) {
+            $new_url = $c->uri_for('/') . '?unset_beta=1';
+        } elsif (!DBDefs->IS_BETA) {
+            $new_url = $c->req->referer || $c->uri_for('/');
+            # 1 year
+            $c->res->cookies->{beta} = { 'value' => 'on', 'path' => '/', 'expires' => time()+31536000 };
+        }
+        # Munge URL to redirect server
+        my $ws = DBDefs->WEB_SERVER;
+        $new_url =~ s/$ws/DBDefs->BETA_REDIRECT_HOSTNAME/e;
+        $c->res->redirect($new_url);
+        $c->detach;
+    }
 }
 
 =head2 default
@@ -149,13 +182,43 @@ sub error_mirror_404 : Private
     $c->detach;
 }
 
+sub _ssl_redirect
+{
+    my ($self, $c) = @_;
+
+    return unless DBDefs->SSL_REDIRECTS_ENABLED;
+
+    if (exists $c->action->attributes->{RequireSSL} && !$c->request->secure)
+    {
+        $c->response->cookies->{return_to_http} = { value => 1 };
+        $c->response->redirect(
+            "https://".DBDefs->WEB_SERVER_SSL.$c->request->env->{REQUEST_URI});
+        return 1;
+    }
+
+    if (!exists $c->action->attributes->{RequireSSL}
+        && $c->request->secure
+        && $c->request->cookie ('return_to_http'))
+    {
+        # expire in the past == delete cookie
+        $c->response->cookies->{return_to_http} = { value => 1, expires => '-1m' };
+        $c->response->redirect(
+            "http://".DBDefs->WEB_SERVER.$c->request->env->{REQUEST_URI});
+        return 1;
+    }
+
+    return 0;
+}
+
 sub begin : Private
 {
     my ($self, $c) = @_;
 
     return if exists $c->action->attributes->{Minimal};
 
-    $c->stats->enable(1) if DBDefs::DEVELOPMENT_SERVER;
+    return if $self->_ssl_redirect ($c);
+
+    $c->stats->enable(1) if DBDefs->DEVELOPMENT_SERVER;
 
     # if no javascript cookie is set we don't know if javascript is enabled or not.
     my $jscookie = $c->request->cookie('javascript');
@@ -165,13 +228,13 @@ sub begin : Private
     $c->stash(
         javascript => $js,
         no_javascript => $js eq "false",
-        wiki_server => &DBDefs::WIKITRANS_SERVER,
+        wiki_server => DBDefs->WIKITRANS_SERVER,
         server_languages => Translation->instance->all_languages(),
         server_details => {
-            staging_server => &DBDefs::DB_STAGING_SERVER,
-            testing_features => &DBDefs::DB_STAGING_TESTING_FEATURES,
-            is_slave_db    => &DBDefs::REPLICATION_TYPE == RT_SLAVE,
-            read_only      => &DBDefs::DB_READ_ONLY
+            staging_server => DBDefs->DB_STAGING_SERVER,
+            testing_features => DBDefs->DB_STAGING_TESTING_FEATURES,
+            is_slave_db    => DBDefs->REPLICATION_TYPE == RT_SLAVE,
+            read_only      => DBDefs->DB_READ_ONLY
         },
     );
 
@@ -213,17 +276,10 @@ sub begin : Private
         $c->forward('/error_401');
     }
 
-    if (DBDefs::DB_READ_ONLY && (exists $c->action->attributes->{Edit} ||
+    if (DBDefs->DB_READ_ONLY && (exists $c->action->attributes->{Edit} ||
                                  exists $c->action->attributes->{DenyWhenReadonly})) {
         $c->stash( message => 'The server is currently in read only mode and is not accepting edits');
         $c->forward('/error_400');
-    }
-
-    # Load current relationship
-    my $rel = $c->session->{current_relationship};
-    if ($rel)
-    {
-    $c->stash->{current_relationship} = $c->model(ucfirst $rel->{type})->load($rel->{id});
     }
 
     # Update the tagger port
@@ -233,7 +289,7 @@ sub begin : Private
     }
 
     # Merging
-    if (my $merger = $c->session->{merger}) {
+    if (my $merger = $c->try_get_session('merger')) {
         my $model = $c->model($merger->type);
         my @merge = values %{
             $model->get_by_ids($merger->all_entities)
@@ -278,22 +334,24 @@ sub end : ActionClass('RenderView')
     return if exists $c->action->attributes->{Minimal};
 
     $c->stash->{server_details} = {
-        staging_server             => &DBDefs::DB_STAGING_SERVER,
-        staging_server_description => &DBDefs::DB_STAGING_SERVER_DESCRIPTION,
-        testing_features           => &DBDefs::DB_STAGING_TESTING_FEATURES,
-        is_slave_db                => &DBDefs::REPLICATION_TYPE == RT_SLAVE,
-        is_sanitized               => &DBDefs::DB_STAGING_SERVER_SANITIZED,
-        developement_server        => &DBDefs::DEVELOPMENT_SERVER
+        staging_server             => DBDefs->DB_STAGING_SERVER,
+        staging_server_description => DBDefs->DB_STAGING_SERVER_DESCRIPTION,
+        testing_features           => DBDefs->DB_STAGING_TESTING_FEATURES,
+        is_slave_db                => DBDefs->REPLICATION_TYPE == RT_SLAVE,
+        is_sanitized               => DBDefs->DB_STAGING_SERVER_SANITIZED,
+        developement_server        => DBDefs->DEVELOPMENT_SERVER,
+        beta_redirect              => DBDefs->BETA_REDIRECT_HOSTNAME,
+        is_beta                    => DBDefs->IS_BETA
     };
 
     # For displaying which git branch is active as well as last commit information
     # (only shown on staging servers)
-    my ($git_branch, $git_sha, $git_msg) = &DBDefs::GIT_BRANCH;
+    my ($git_branch, $git_sha, $git_msg) = DBDefs->GIT_BRANCH;
     $c->stash->{server_details}->{git}->{branch} = $git_branch;
     $c->stash->{server_details}->{git}->{sha}    = $git_sha;
     $c->stash->{server_details}->{git}->{msg}    = $git_msg;
 
-    $c->stash->{google_analytics_code} = &DBDefs::GOOGLE_ANALYTICS_CODE;
+    $c->stash->{google_analytics_code} = DBDefs->GOOGLE_ANALYTICS_CODE;
 
     # For displaying release attributes
     $c->stash->{release_attribute}        = \&MusicBrainz::Server::Release::attribute_name;
@@ -315,13 +373,7 @@ sub end : ActionClass('RenderView')
 
     $c->stash->{various_artist_mbid} = ModDefs::VARTIST_MBID;
 
-    $c->stash->{wiki_server} = &DBDefs::WIKITRANS_SERVER;
-}
-
-sub chrome_frame : Local
-{
-    my ($self, $c) = @_;
-    $c->stash( template => 'main/frame.tt' );
+    $c->stash->{wiki_server} = DBDefs->WIKITRANS_SERVER;
 }
 
 =head1 LICENSE

@@ -3,6 +3,7 @@ use Moose;
 BEGIN { extends 'MusicBrainz::Server::ControllerBase::WS::2' }
 
 use aliased 'MusicBrainz::Server::WebService::WebServiceStash';
+use MusicBrainz::Server::ControllerUtils::Release qw( load_release_events );
 use MusicBrainz::Server::Validation qw( is_guid );
 use Readonly;
 
@@ -15,13 +16,13 @@ my $ws_defs = Data::OptList::mkopt([
      "release-group" => {
                          method   => 'GET',
                          linked   => [ qw(artist release) ],
-                         inc      => [ qw(artist-credits
+                         inc      => [ qw(artist-credits annotation
                                           _relations tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt limit offset) ],
      },
      "release-group" => {
                          method   => 'GET',
-                         inc      => [ qw(artists releases artist-credits aliases
+                         inc      => [ qw(artists releases artist-credits aliases annotation
                                           _relations tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt) ],
      },
@@ -48,10 +49,14 @@ sub release_group_toplevel
 
     $self->linked_release_groups ($c, $stash, [ $rg ]);
 
+    $c->model('ReleaseGroup')->annotation->load_latest($rg)
+        if $c->stash->{inc}->annotation;
+
     if ($c->stash->{inc}->releases)
     {
         my @results = $c->model('Release')->find_by_release_group(
             $rg->id, $MAX_ITEMS, 0, filter => { status => $c->stash->{status} });
+        load_release_events($c, @{$results[0]});
         $opts->{releases} = $self->make_list (@results);
 
         $self->linked_releases ($c, $stash, $opts->{releases}->{items});

@@ -66,8 +66,9 @@ test all => sub {
         name => 'RAM Records',
         sort_name => 'RAM Records',
         type_id => 1,
-        country_id => 1,
+        area_id => 221,
         ipi_codes => [ '00407982340' ],
+        isni_codes => [ '0000000106750994' ],
         end_date => { year => 2000, month => 05 }
                                  });
     isa_ok($label, 'MusicBrainz::Server::Entity::Label');
@@ -93,7 +94,7 @@ test all => sub {
     is($label->name, 'RAM Records', "name");
     is($label->sort_name, 'RAM Records', "sort name");
     is($label->type_id, 1, "type id");
-    is($label->country_id, 1, "country id");
+    is($label->area_id, 221, "area id");
     ok(!$label->end_date->is_empty, "end date is not empty");
     is($label->end_date->year, 2000, "end date, year");
     is($label->end_date->month, 5, "end date, month");
@@ -102,6 +103,7 @@ test all => sub {
         sort_name => 'Records, RAM',
         begin_date => { year => 1990 },
         ipi_codes => [ '00407982341' ],
+        isni_codes => [ '0000000106750995' ],
         comment => 'Drum & bass label'
     });
 
@@ -137,6 +139,35 @@ test 'Deny delete "Deleted Label" trigger' => sub {
     like exception {
         $c->sql->do ("DELETE FROM artist WHERE id = $DLABEL_ID")
     }, qr/ERROR:\s*Attempted to delete a special purpose row/;
+};
+
+test 'Cannot edit an label into something that would violate uniqueness' => sub {
+    my $c = shift->c;
+    $c->sql->do(<<'EOSQL');
+INSERT INTO label_name (id, name) VALUES (1, 'A'), (2, 'B');
+INSERT INTO label (id, gid, name, sort_name, comment) VALUES
+  (3, '745c079d-374e-4436-9448-da92dedef3ce', 1, 1, ''),
+  (4, '7848d7ce-d650-40c4-b98f-62fc037a678b', 2, 1, 'Comment');
+EOSQL
+
+    my $conflicts_exception_ok = sub {
+        my ($e, $target) = @_;
+
+        isa_ok $e, 'MusicBrainz::Server::Exceptions::DuplicateViolation';
+        is $e->conflict->id, $target;
+    };
+
+    ok !exception { $c->model('Label')->update(4, { comment => '' }) };
+    $conflicts_exception_ok->(
+        exception { $c->model('Label')->update(3, { name => 'B' }) },
+        4
+    );
+
+    ok !exception { $c->model('Label')->update(3, { name => 'B', comment => 'Unique' }) };
+    $conflicts_exception_ok->(
+        exception { $c->model('Label')->update(3, { comment => '' }) },
+        4
+    );
 };
 
 1;

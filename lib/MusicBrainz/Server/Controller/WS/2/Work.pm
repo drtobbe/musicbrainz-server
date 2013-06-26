@@ -14,13 +14,15 @@ my $ws_defs = Data::OptList::mkopt([
      },
      work => {
                          method   => 'GET',
-                         inc      => [ qw(aliases _relations tags user-tags ratings user-ratings) ],
+                         inc      => [ qw(aliases annotation _relations
+                                          tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt limit offset) ],
                          linked   => [ qw( artist ) ]
      },
      work => {
                          method   => 'GET',
-                         inc      => [ qw(aliases _relations tags user-tags ratings user-ratings) ],
+                         inc      => [ qw(aliases annotation _relations
+                                          tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt) ],
      },
 ]);
@@ -41,6 +43,9 @@ sub work_toplevel
     my $opts = $stash->store ($work);
 
     $self->linked_works ($c, $stash, [ $work ]);
+
+    $c->model('Work')->annotation->load_latest($work)
+        if $c->stash->{inc}->annotation;
 
     $self->load_relationships($c, $stash, $work);
 
@@ -83,7 +88,7 @@ sub work_browse : Private
     my $total;
     if ($resource eq 'artist') {
         my $artist = $c->model('Artist')->get_by_gid($id);
-        $c->detach('not_fonud') unless $artist;
+        $c->detach('not_found') unless $artist;
 
         my @tmp = $c->model('Work')->find_by_artist($artist->id, $limit, $offset);
         $works = $self->make_list(@tmp, $offset);

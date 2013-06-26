@@ -1,6 +1,7 @@
 package MusicBrainz::Server::Edit::Medium::Edit;
 use Carp;
 use Clone 'clone';
+use List::AllUtils qw( any );
 use Algorithm::Diff qw( diff sdiff );
 use Algorithm::Merge qw( merge );
 use Data::Compare;
@@ -21,7 +22,7 @@ use MusicBrainz::Server::Edit::Types qw(
     Nullable
     NullableOnPreview
 );
-use MusicBrainz::Server::Edit::Utils qw( verify_artist_credits hash_artist_credit );
+use MusicBrainz::Server::Edit::Utils qw( verify_artist_credits hash_artist_credit hash_artist_credit_without_join_phrases );
 use MusicBrainz::Server::Log qw( log_assertion log_debug );
 use MusicBrainz::Server::Validation 'normalise_strings';
 use MusicBrainz::Server::Translation qw ( N_l );
@@ -49,7 +50,7 @@ has '+data' => (
             name => Str
         ],
         separate_tracklists => Optional[Bool],
-        current_tracklist => NullableOnPreview[Int],
+        current_tracklist => Optional[Int],
         old => change_fields(),
         new => change_fields()
     ]
@@ -127,8 +128,8 @@ sub initialize
     my ($self, %opts) = @_;
 
     my $entity = delete $opts{to_edit};
+
     my $tracklist = delete $opts{tracklist};
-    my $separate_tracklists = delete $opts{separate_tracklists};
     my $data;
 
     # FIXME: really should receive an entity on preview too.
@@ -154,16 +155,14 @@ sub initialize
                 id => $entity->release->id,
                 name => $entity->release->name
             },
-            current_tracklist => $entity->tracklist_id,
             $self->_changes($entity, %opts)
         };
 
         if ($tracklist) {
-            $self->c->model('Tracklist')->load ($entity);
-            $self->c->model('Track')->load_for_tracklists ($entity->tracklist);
-            $self->c->model('ArtistCredit')->load ($entity->tracklist->all_tracks);
+            $self->c->model('Track')->load_for_mediums ($entity);
+            $self->c->model('ArtistCredit')->load ($entity->all_tracks);
 
-            my $old = tracks_to_hash($entity->tracklist->tracks);
+            my $old = tracks_to_hash($entity->tracks);
             my $new = tracks_to_hash($tracklist);
 
             unless (Compare(filter_subsecond_differences ($old),
@@ -171,7 +170,6 @@ sub initialize
             {
                 $data->{old}{tracklist} = $old;
                 $data->{new}{tracklist} = $new;
-                $data->{separate_tracklists} = $separate_tracklists;
             }
         }
 
@@ -243,16 +241,14 @@ sub build_display_data
         $data->{new}{tracklist} = display_tracklist($loaded, $self->data->{new}{tracklist});
         $data->{old}{tracklist} = display_tracklist($loaded, $self->data->{old}{tracklist});
 
-        $data->{tracklist_changes} = [
-            grep { $_->[0] ne 'u' }
+        my $tracklist_changes = [
             @{ sdiff(
-                [ $data->{old}{tracklist}->all_tracks ],
-                [ $data->{new}{tracklist}->all_tracks ],
+                $data->{old}{tracklist},
+                $data->{new}{tracklist},
                 sub {
                     my $track = shift;
                     return join(
                         '',
-                        $track->number // $track->position,
                         $track->name,
                         format_track_length($track->length),
                         join(
@@ -266,37 +262,27 @@ sub build_display_data
             ) }
         ];
 
+        if (any {$_->[0] ne 'u' || $_->[1]->number ne $_->[2]->number } @$tracklist_changes) {
+            $data->{tracklist_changes} = $tracklist_changes;
+        }
+
         $data->{artist_credit_changes} = [
-            grep { $_->[0] eq 'c' || $_->[0] eq '+' }
             grep {
-                ($_->[1] && hash_artist_credit($_->[1]->artist_credit))
+                ($_->[1] && hash_artist_credit_without_join_phrases($_->[1]->artist_credit))
                     ne
-                ($_->[2] && hash_artist_credit($_->[2]->artist_credit))
+                ($_->[2] && hash_artist_credit_without_join_phrases($_->[2]->artist_credit))
             }
-            @{ sdiff(
-                [ $data->{old}{tracklist}->all_tracks ],
-                [ $data->{new}{tracklist}->all_tracks ],
-                sub {
-                    my $track = shift;
-                    return join(
-                        '',
-                        $track->name,
-                        format_track_length($track->length),
-                        hash_artist_credit($track->artist_credit)
-                    );
-                }) }
-        ];
+            grep { $_->[0] ne '-' }
+            @$tracklist_changes ];
 
         $data->{recording_changes} = [
-            grep { $_->[0] eq 'c' }
-            @{ sdiff(
-                [ $data->{old}{tracklist}->all_tracks ],
-                [ $data->{new}{tracklist}->all_tracks ],
-                sub {
-                    my $track = shift;
-                    return $track->recording->id || 'new';
-                }) }
-        ];
+            grep {
+                (($_->[1] // 0) && $_->[1]->recording_id // $_->[1]->recording->id)
+                    !=
+                (($_->[2] // 0) && $_->[2]->recording_id // $_->[2]->recording->id)
+            }
+            grep { $_->[0] ne '+' && $_->[0] ne '-' }
+            @$tracklist_changes ];
     }
 
     return $data;
@@ -317,22 +303,24 @@ sub accept {
         )
     }
 
-    $self->c->model('Medium')->update($self->entity_id, $self->data->{new});
+    my $data_new = clone ($self->data->{new});
+    my $data_new_tracklist = delete $data_new->{tracklist};
 
-    if ($self->data->{new}{tracklist}) {
-        my $data_new_tracklist = clone ($self->data->{new}{tracklist});
+    $self->c->model('Medium')->update($self->entity_id, $data_new);
+
+    if ($data_new_tracklist) {
         my $medium = $self->c->model('Medium')->get_by_id($self->medium_id);
-        my $tracklist = $self->c->model('Tracklist')->get_by_id($medium->tracklist_id);
-        $self->c->model('Track')->load_for_tracklists($tracklist);
-        $self->c->model('ArtistCredit')->load($tracklist->all_tracks);
+        $self->c->model('Track')->load_for_mediums($medium);
+        $self->c->model('ArtistCredit')->load($medium->all_tracks);
 
         # Make sure we aren't using undef for any new recording IDs, as it will merge incorrectly
         $_->{recording_id} //= 0 for @$data_new_tracklist;
 
-        my (@merged_numbers, @merged_names, @merged_recordings, @merged_lengths, @merged_artist_credits);
-        my $current_tracklist = tracks_to_hash($tracklist->tracks);
+        my (@merged_row_ids, @merged_numbers, @merged_names, @merged_recordings, @merged_lengths, @merged_artist_credits);
+        my $current_tracklist = tracks_to_hash($medium->tracks);
         try {
             for my $merge (
+                [ id => \@merged_row_ids ],
                 [ number => \@merged_numbers ],
                 [ name => \@merged_names ],
                 [ recording_id => \@merged_recordings ],
@@ -356,6 +344,7 @@ sub accept {
         };
 
         log_assertion {
+            @merged_row_ids == @merged_numbers &&
             @merged_numbers == @merged_names &&
             @merged_names == @merged_recordings &&
             @merged_recordings == @merged_lengths &&
@@ -363,15 +352,18 @@ sub accept {
         } 'Merged properties are all the same length';
 
         # Create the final merged tracklist
+        my $position = 1;
         my @final_tracklist;
         my $existing_recordings = $self->c->model('Recording')->get_by_ids(@merged_recordings);
         while(1) {
-            last unless @merged_artist_credits &&
+            last unless @merged_row_ids &&
+                        @merged_artist_credits &&
                         @merged_lengths &&
                         @merged_recordings &&
                         @merged_names &&
                         @merged_numbers;
 
+            my $track_id = shift(@merged_row_ids);
             my $length = shift(@merged_lengths);
             my $number = shift(@merged_numbers);
             my $recording_id = shift(@merged_recordings);
@@ -382,7 +374,10 @@ sub accept {
             }
 
             push @final_tracklist, {
+                id => $track_id eq $UNDEF_MARKER ? undef : $track_id,
                 name => shift(@merged_names),
+                position => $position++,
+                medium_id => $self->entity_id,
                 number => $number eq $UNDEF_MARKER ? undef : $number,
                 length => $length eq $UNDEF_MARKER ? undef : $length,
                 recording_id => $recording_id,
@@ -394,35 +389,35 @@ sub accept {
             $_->{artist_credit}
         } @final_tracklist);
 
-        # Create recordings
+        # Create tracks and recordings
+        my %tracks_reused;
         for my $track (@final_tracklist) {
+            $track->{artist_credit_id} = $self->c->model('ArtistCredit')->find_or_insert(
+                delete $track->{artist_credit});
+
             if (!$track->{recording_id}) {
                 $track->{recording_id} = $self->c->model('Recording')->insert({
-                    %$track,
-                    artist_credit => $self->c->model('ArtistCredit')->find_or_insert($track->{artist_credit}),
-                })->id;
+                    %$track, artist_credit => $track->{artist_credit_id} })->id;
 
                 # We are in the processing of closing this edit. The edit exists, so we need to add a new link
                 $self->c->model('Edit')->add_link('recording', $track->{recording_id}, $self->id);
             }
+
+            if ($track->{id})
+            {
+                $self->c->model ('Track')->update ($track->{id}, $track);
+                $tracks_reused{$track->{id}} = 1;
+            }
+            else
+            {
+                $self->c->model ('Track')->insert ($track);
+            }
         }
 
-        # See if we need a new tracklist
-        if ($self->data->{separate_tracklists} &&
-                $self->c->model('Tracklist')->usage_count($medium->tracklist_id) > 1) {
-
-            my $new_tracklist = $self->c->model('Tracklist')->find_or_insert(
-                \@final_tracklist
-            );
-
-            $self->c->model('Medium')->update($medium->id, {
-                tracklist_id => $new_tracklist->id
-            });
-            $self->c->model('Tracklist')->garbage_collect;
-        }
-        else {
-            $self->c->model('Tracklist')->replace($medium->tracklist_id,
-                                                  \@final_tracklist);
+        for my $old_track ($medium->all_tracks)
+        {
+            $self->c->model ('Track')->delete ($old_track->id)
+                unless $tracks_reused{$old_track->id}
         }
     }
 }

@@ -24,11 +24,7 @@
           <table class="vote-tally">
             <tr class="noborder">
                 <th>[% l('Vote tally:') %]</th>
-                <td class="vote">
-                    [%- l('{yes} yes : {no} no',
-                         { yes => '<strong>' _ edit.yes_votes _ '</strong>',
-                           no => '<strong>' _ edit.no_votes _ '</strong>' }) -%]
-                </td>
+                <td class="vote">[%- vote_tally(edit) -%]</td>
             </tr>
             [% IF edit.editor_may_vote(c.user) %]
                 <tr class="noborder">
@@ -78,8 +74,10 @@
 
             <h2>[% l('Edit notes') %]</h2>
             [% INCLUDE 'edit/notes.tt' %]
-            [%- IF edit.editor_may_add_note(c.user) || edit.editor_may_vote -%]
-                [%- form_submit(l('Add note and vote')) -%]
+            [%- IF edit.editor_may_vote(c.user) -%]
+                    [%- form_submit(l('Submit vote and note')) -%]
+            [%- ELSIF edit.editor_may_add_note(c.user) -%]
+                    [%- form_submit(l('Submit note')) -%]
             [%- END -%]
         </form>
     </div>

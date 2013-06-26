@@ -15,14 +15,14 @@ my $ws_defs = Data::OptList::mkopt([
      artist => {
                          method   => 'GET',
                          linked   => [ qw(recording release release-group work) ],
-                         inc      => [ qw(aliases
+                         inc      => [ qw(aliases annotation
                                           _relations tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt limit offset) ],
      },
      artist => {
                          method   => 'GET',
                          inc      => [ qw(recordings releases release-groups works
-                                          aliases various-artists
+                                          aliases various-artists annotation
                                           _relations tags user-tags ratings user-ratings) ],
                          optional => [ qw(fmt) ],
      },
@@ -67,8 +67,13 @@ sub artist_toplevel
 
     $c->model('ArtistType')->load($artist);
     $c->model('Gender')->load($artist);
-    $c->model('Country')->load($artist);
+    $c->model('Area')->load($artist);
+    $c->model('Area')->load_codes($artist->area, $artist->begin_area, $artist->end_area);
     $c->model('Artist')->ipi->load_for($artist);
+    $c->model('Artist')->isni->load_for($artist);
+
+    $c->model('Artist')->annotation->load_latest($artist)
+        if $c->stash->{inc}->annotation;
 
     if ($c->stash->{inc}->recordings)
     {

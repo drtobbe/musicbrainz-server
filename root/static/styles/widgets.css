@@ -11,7 +11,6 @@
 .buttons button,
 .buttons input[type=submit],
 .buttons input[type=button] {
-    display:block;
     float:left;
     margin:0 7px 0 0;
     background-color:#F0F0F0;
@@ -333,4 +332,11 @@ ul.favicons li img {
 
 #recaptcha_widget_div {
     display: inline-block;
+}
+
+ul.ui-autocomplete.ui-menu {
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 5001 !important;
 }

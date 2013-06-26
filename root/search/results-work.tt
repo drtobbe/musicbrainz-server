@@ -9,6 +9,7 @@
                             <th>[%- l('Writers') -%]</th>
                             <th>[%- l('Artists') -%]</th>
                             <th>[%- l('ISWC') -%]</th>
+                            <th>[%- l('Type') -%]</th>
                             <th>[%- l('Language') -%]</th>
                         </tr>
                     </thead>
@@ -16,7 +17,7 @@
                         [%- FOR result=results -%]
                         <tr[%- ' class="ev"' IF loop.count % 2 == 0 -%]>
                             <td>[%- result.score -%]</td>
-                            <td>[%- descriptive_link(result.entity) -%]</td>
+                            <td>[%- link_entity(result.entity) -%]</td>
                             <td>
                               <ul>
                                 [% FOR rel_artist=result.entity.writers %]
@@ -41,6 +42,9 @@
                               </ul>
                             </td>
                             <td>
+                                [% result.entity.type.l_name %]
+                            </td>
+                            <td>
                               <abbr title="[% result.entity.language.l_name %]">
                                 [% result.entity.language.iso_code_3 %]
                               </abbr>
@@ -52,11 +56,11 @@
             [%- END -%]
         [%- ELSE -%]
             <p>[% l('No results found. Try refining your search query.') %]</p>
-            <p>
-              [% l('Alternatively, you may {uri|add a new work}.', {
-                    uri => c.uri_for_action('/work/create', {
-                             'edit-work.name' => query
-                           }) }) %]
-            </p>
         [%- END -%]
+        <p>
+          [% l('Alternatively, you may {uri|add a new work}.', {
+                uri => c.uri_for_action('/work/create', {
+                         'edit-work.name' => query
+                       }) }) %]
+        </p>
 [%- END -%]

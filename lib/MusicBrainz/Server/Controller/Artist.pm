@@ -12,11 +12,13 @@ with 'MusicBrainz::Server::Controller::Role::Alias';
 with 'MusicBrainz::Server::Controller::Role::Details';
 with 'MusicBrainz::Server::Controller::Role::EditListing';
 with 'MusicBrainz::Server::Controller::Role::IPI';
+with 'MusicBrainz::Server::Controller::Role::ISNI';
 with 'MusicBrainz::Server::Controller::Role::Relationship';
 with 'MusicBrainz::Server::Controller::Role::Rating';
 with 'MusicBrainz::Server::Controller::Role::Tag';
 with 'MusicBrainz::Server::Controller::Role::Subscribe';
 with 'MusicBrainz::Server::Controller::Role::Cleanup';
+with 'MusicBrainz::Server::Controller::Role::WikipediaExtract';
 
 use Data::Page;
 use HTTP::Status qw( :constants );
@@ -32,6 +34,7 @@ use MusicBrainz::Server::Constants qw(
     $EDIT_ARTIST_EDITCREDIT
     $EDIT_RELATIONSHIP_DELETE
 );
+use MusicBrainz::Server::ControllerUtils::Release qw( load_release_events );
 use MusicBrainz::Server::Form::Artist;
 use MusicBrainz::Server::Form::Confirm;
 use MusicBrainz::Server::Translation qw( l );
@@ -41,6 +44,8 @@ use MusicBrainz::Server::FilterUtils qw(
     create_artist_recordings_form
 );
 use Sql;
+
+use List::AllUtils qw( any );
 
 my $COLLABORATION = '75c09861-6857-4ec0-9729-84eefde7fc86';
 
@@ -100,7 +105,8 @@ after 'load' => sub
 
     $c->model('ArtistType')->load($artist);
     $c->model('Gender')->load($artist);
-    $c->model('Country')->load($artist);
+    $c->model('Area')->load($artist);
+    $c->model('Area')->load_codes($artist->area);
 
     $c->stash(
         watching_artist =>
@@ -389,7 +395,7 @@ sub releases : Chained('load')
     $c->model('ArtistCredit')->load(@$releases);
     $c->model('Medium')->load_for_releases(@$releases);
     $c->model('MediumFormat')->load(map { $_->all_mediums } @$releases);
-    $c->model('Country')->load(@$releases);
+    load_release_events($c, @$releases);
     $c->model('ReleaseLabel')->load(@$releases);
     $c->model('Label')->load(map { $_->all_labels } @$releases);
     $c->stash(
@@ -453,7 +459,7 @@ sub edit : Chained('load') RequireAuth Edit {
         type        => $EDIT_ARTIST_EDIT,
         item        => $artist,
         edit_args   => { to_edit => $artist },
-        post_creation => sub {
+        on_creation => sub {
             my ($edit, $form) = @_;
 
             my $editid = $edit->id;
@@ -479,8 +485,7 @@ sub edit : Chained('load') RequireAuth Edit {
                     );
                 }
             }
-        },
-        on_creation => sub {
+
             $c->res->redirect(
                 $c->uri_for_action('/artist/show', [ $artist->gid ]));
         }
@@ -517,6 +522,11 @@ around _validate_merge => sub {
     my $target = $form->field('target')->value;
     if (grep { is_special_artist($_) && $target != $_ } $merger->all_entities) {
         $form->field('target')->add_error(l('You cannot merge a special purpose artist into another artist'));
+        return 0;
+    }
+
+    if (any { $_ == $DARTIST_ID } $merger->all_entities) {
+        $form->field('target')->add_error(l('You cannot merge into Deleted Artist'));
         return 0;
     }
 
@@ -614,7 +624,7 @@ sub split : Chained('load') Edit {
         type        => $EDIT_ARTIST_EDITCREDIT,
         item        => { artist_credit => $ac },
         edit_args   => { to_edit => $ac },
-        post_creation => sub {
+        on_creation => sub {
             my ($edit) = @_;
 
             my $editid = $edit->id;

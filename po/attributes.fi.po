@@ -1,15 +1,18 @@
 # 
 # Translators:
-# Jaakko Perttilä <email address hidden>, 2012.
-# ListMyCDs.com Martikainen <email address hidden>, 2012.
-# Timo Martikainen <>, 2012.
-# Timo Martikainen <email address hidden>, 2012.
+# Jaakko Perttilä <email address hidden>, 2012
+# Jaakko Perttilä <email address hidden>, 2012-2013
+# ListMyCDs.com Martikainen <email address hidden>, 2012
+# ListMyCDs.com Martikainen <email address hidden>, 2012
+# Timo Martikainen <>, 2012
+# Timo Martikainen <email address hidden>, 2012
+# ListMyCDs.com Martikainen <email address hidden>, 2012
 msgid ""
 msgstr ""
 "Project-Id-Version: MusicBrainz\n"
 "Report-Msgid-Bugs-To: http://tickets.musicbrainz.org/\n"
-"PO-Revision-Date: 2012-10-05 10:58+0000\n"
-"Last-Translator: Ian McEwen <email address hidden>\n"
+"PO-Revision-Date: 2013-06-11 17:23+0000\n"
+"Last-Translator: Jaakko Perttilä <email address hidden>\n"
 "Language-Team: Finnish (http://www.transifex.com/projects/p/musicbrainz/language/fi/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -42,6 +45,11 @@ msgctxt "release_group_primary_type"
 msgid "Album"
 msgstr "Albumi"
 
+#: DB:area_alias_type/name:1
+msgctxt "alias_type"
+msgid "Area name"
+msgstr "Alueen nimi"
+
 #: DB:work_type/name:1
 msgctxt "work_type"
 msgid "Aria"
@@ -60,7 +68,7 @@ msgstr "Äänikirja"
 #: DB:cover_art_archive.art_type/name:2
 msgctxt "cover_art_type"
 msgid "Back"
-msgstr ""
+msgstr "Takakansi"
 
 #: DB:work_type/name:2
 msgctxt "work_type"
@@ -80,7 +88,7 @@ msgstr "Blu-ray"
 #: DB:cover_art_archive.art_type/name:3
 msgctxt "cover_art_type"
 msgid "Booklet"
-msgstr ""
+msgstr "Kirjanen"
 
 #: DB:release_status/name:3
 msgctxt "release_status"
@@ -127,6 +135,11 @@ msgctxt "medium_format"
 msgid "Cassette"
 msgstr "C-kasetti"
 
+#: DB:area_type/name:3
+msgctxt "area_type"
+msgid "City"
+msgstr "Kaupunki"
+
 #: DB:release_group_secondary_type/name:1
 msgctxt "release_group_secondary_type"
 msgid "Compilation"
@@ -136,6 +149,11 @@ msgstr "Kokoelma"
 msgctxt "work_type"
 msgid "Concerto"
 msgstr "Konsertto"
+
+#: DB:area_type/name:1
+msgctxt "area_type"
+msgid "Country"
+msgstr "Maa"
 
 #: DB:medium_format/name:11
 msgctxt "medium_format"
@@ -197,10 +215,15 @@ msgctxt "gender"
 msgid "Female"
 msgstr "Nainen"
 
+#: DB:area_alias_type/name:2
+msgctxt "alias_type"
+msgid "Formal name"
+msgstr "Virallinen nimi"
+
 #: DB:cover_art_archive.art_type/name:1
 msgctxt "cover_art_type"
 msgid "Front"
-msgstr ""
+msgstr "Kansi"
 
 #: DB:artist_type/name:2
 msgctxt "artist_type"
@@ -275,7 +298,7 @@ msgstr "Messu"
 #: DB:cover_art_archive.art_type/name:4
 msgctxt "cover_art_type"
 msgid "Medium"
-msgstr ""
+msgstr "Tallenne"
 
 #: DB:medium_format/name:6
 msgctxt "medium_format"
@@ -300,7 +323,7 @@ msgstr "Ei mitään"
 #: DB:cover_art_archive.art_type/name:5
 msgctxt "cover_art_type"
 msgid "Obi"
-msgstr ""
+msgstr "Obi"
 
 #: DB:release_status/name:1
 msgctxt "release_status"
@@ -311,6 +334,11 @@ msgstr "Virallinen"
 msgctxt "work_type"
 msgid "Opera"
 msgstr "Ooppera"
+
+#: DB:work_type/name:24
+msgctxt "work_type"
+msgid "Operetta"
+msgstr "Operetti"
 
 #: DB:work_type/name:11
 msgctxt "work_type"
@@ -330,7 +358,7 @@ msgstr "Muu"
 #: DB:cover_art_archive.art_type/name:8
 msgctxt "cover_art_type"
 msgid "Other"
-msgstr ""
+msgstr "Muu"
 
 #: DB:gender/name:3
 msgctxt "gender"
@@ -387,6 +415,11 @@ msgctxt "release_status"
 msgid "Promotion"
 msgstr "Promo"
 
+#: DB:work_type/name:23
+msgctxt "work_type"
+msgid "Prose"
+msgstr "Proosa"
+
 #: DB:release_status/name:4
 msgctxt "release_status"
 msgid "Pseudo-Release"
@@ -417,6 +450,11 @@ msgctxt "release_group_secondary_type"
 msgid "Remix"
 msgstr "Remix"
 
+#: DB:label_type/name:8
+msgctxt "label_type"
+msgid "Rights Society"
+msgstr ""
+
 #: DB:medium_format/name:3
 msgctxt "medium_format"
 msgid "SACD"
@@ -428,7 +466,7 @@ msgid "SVCD"
 msgstr "Super Video CD"
 
 #: DB:artist_alias_type/name:3 DB:label_alias_type/name:2
-#: DB:work_alias_type/name:2
+#: DB:work_alias_type/name:2 DB:area_alias_type/name:3
 msgctxt "alias_type"
 msgid "Search hint"
 msgstr "Hakuvihje"
@@ -463,10 +501,15 @@ msgctxt "release_group_secondary_type"
 msgid "Soundtrack"
 msgstr "Soundtrack"
 
+#: DB:work_type/name:22
+msgctxt "work_type"
+msgid "Soundtrack"
+msgstr "Elokuvamusiikki"
+
 #: DB:cover_art_archive.art_type/name:6
 msgctxt "cover_art_type"
 msgid "Spine"
-msgstr ""
+msgstr "Selkäosa"
 
 #: DB:release_group_secondary_type/name:3
 msgctxt "release_group_secondary_type"
@@ -476,6 +519,11 @@ msgstr "Puhe"
 #: DB:cover_art_archive.art_type/name:10
 msgctxt "cover_art_type"
 msgid "Sticker"
+msgstr "Tarra"
+
+#: DB:area_type/name:2
+msgctxt "area_type"
+msgid "Subdivision"
 msgstr ""
 
 #: DB:work_type/name:6
@@ -496,12 +544,12 @@ msgstr "Sinfonia"
 #: DB:cover_art_archive.art_type/name:7
 msgctxt "cover_art_type"
 msgid "Track"
-msgstr ""
+msgstr "Kappale"
 
 #: DB:cover_art_archive.art_type/name:9
 msgctxt "cover_art_type"
 msgid "Tray"
-msgstr ""
+msgstr "Kotelo"
 
 #: DB:medium_format/name:28
 msgctxt "medium_format"

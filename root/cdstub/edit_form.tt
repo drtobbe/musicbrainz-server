@@ -5,11 +5,12 @@
             [% form_row_text_long(r, 'title', l('Title:')) %]
             [% form_row_text_long(r, 'artist', l('Artist:')) %]
             [% form_row_text(r, 'barcode', l('Barcode:')) %]
-            [% form_row_text_long(r, 'comment', l('Disambiguation:')) %]
+            [% form_row_text_long(r, 'comment', l('Comment:')) %]
             [% form_row_checkbox(r, 'multiple_artists', l('This CD has tracks from more than one artist (e.g. a compilation CD)')) %]
         </fieldset>
         <fieldset>
             <legend>[% l('Tracklist') %]</legend>
+            [% field_errors(r.form, 'tracks') %]
             [% FOR track=form.field('tracks').fields %]
                 [% prefix = 'tracks.' _ loop.index _ '.' %]
                 [% form_row_text_long(r, prefix _ 'title', l('Track {n}:', { n => loop.count })) %]

@@ -4,15 +4,13 @@ use warnings;
 use 5.10.0;
 
 use List::MoreUtils qw( uniq );
-
-use MusicBrainz::Server::Data::Utils qw( partial_date_to_hash artist_credit_to_ref );
+use MusicBrainz::Server::Constants qw( :edit_status :vote $AUTO_EDITOR_FLAG :quality :expire_action );
+use MusicBrainz::Server::Data::Utils qw( artist_credit_to_ref collapse_whitespace trim partial_date_to_hash );
+use MusicBrainz::Server::Edit::Exceptions;
 use MusicBrainz::Server::Entity::ArtistCredit;
 use MusicBrainz::Server::Entity::ArtistCreditName;
-use MusicBrainz::Server::Edit::Exceptions;
-use MusicBrainz::Server::Constants qw( :edit_status :vote $AUTO_EDITOR_FLAG :quality :expire_action );
-use Text::Trim qw( trim );
-
 use MusicBrainz::Server::Translation qw( N_l );
+use Set::Scalar;
 
 use aliased 'MusicBrainz::Server::Entity::Artist';
 use aliased 'MusicBrainz::Server::Entity::PartialDate';
@@ -30,9 +28,11 @@ our @EXPORT_OK = qw(
     edit_status_name
     conditions_without_autoedit
     hash_artist_credit
+    hash_artist_credit_without_join_phrases
     merge_artist_credit
     merge_barcode
     merge_partial_date
+    merge_set
     merge_value
     load_artist_credit_definitions
     status_names
@@ -180,7 +180,7 @@ sub clean_submitted_artist_credits
             delete $part->{artist}->{gid};
 
             # Fill in the artist credit from the artist name if no artist credit
-            # was submitted (because it is displayed as a HTML5 placeholder).
+            # was submitted.
             $part->{name} = $part->{artist}->{name} unless $part->{name};
 
             # MBS-3226, Fill in the artist name from the artist credit if the user
@@ -189,6 +189,10 @@ sub clean_submitted_artist_credits
 
             # Set to empty string if join_phrase is undef.
             $part->{join_phrase} = '' unless defined $part->{join_phrase};
+            $part->{join_phrase} = collapse_whitespace ($part->{join_phrase});
+
+            # Remove trailing whitespace from a trailing join phrase.
+            $part->{join_phrase} =~ s/\s+$// if $_ == $#names;
         }
         elsif (! $part)
         {
@@ -268,13 +272,21 @@ sub status_names
 
 
 sub hash_artist_credit {
-    my ($artist_credit) = @_;
+    return _hash_artist_credit(shift)
+}
+
+sub hash_artist_credit_without_join_phrases {
+    return _hash_artist_credit(shift, 1)
+}
+
+sub _hash_artist_credit {
+    my ($artist_credit, $visible_only) = @_;
     return join(', ', map {
         '[' .
             join(',',
                  $_->{name},
-                 $_->{artist}{id} // -1,
-                 $_->{join_phrase} || '')
+                 $_->{artist}{id} // -1)
+            . (!$visible_only ? ',' . $_->{join_phrase} || '' : '')
             .
         ']'
     } @{ $artist_credit->{names} });
@@ -357,6 +369,31 @@ sub merge_value {
     my $v = shift;
     state $json = JSON::Any->new( utf8 => 1, allow_blessed => 1, canonical => 1 );
     return [ ref($v) ? $json->objToJson($v) : defined($v) ? "'$v'" : 'undef', $v ];
+}
+
+sub merge_set {
+    my ($old, $current, $new) = @_;
+
+    my $old_set     = Set::Scalar->new(@$old);
+    my $current_set = Set::Scalar->new(@$current);
+    my $new_set     = Set::Scalar->new(@$new);
+
+    # An element can be present or absent from each set.
+    # There are these seven possible cases:
+    #   OCN: never changed
+    #   O-N: removed by previous edit, we shouldn't undo that (*)
+    #   O--: has already been deleted by previous edit
+    #   -CN: has already been added by previous edit
+    #   -C-: has been added by previous edit (*)
+    #   --N: add completely new element
+    #   OC-: delete elements that weren't touched by previous edit
+    # (*) marks the cases where the intended result diverges from N.
+
+    my $result_set = ($new_set
+        - ($old_set - $current_set))  # leave out those removed in the meantime
+        + ($current_set - $old_set);  # ... and include those added
+
+    return [ $result_set->members ];
 }
 
 1;

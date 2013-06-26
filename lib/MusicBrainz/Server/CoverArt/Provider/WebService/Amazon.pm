@@ -12,7 +12,6 @@ use aliased 'MusicBrainz::Server::CoverArt::Amazon' => 'CoverArt';
 use MusicBrainz::Server::Log qw( log_error );
 
 extends 'MusicBrainz::Server::CoverArt::Provider';
-with 'MusicBrainz::Server::CoverArt::BarcodeSearch';
 
 has '+link_type_name' => (
     default => 'amazon asin',
@@ -49,8 +48,8 @@ my $last_request_time;
 
 sub _build__aws_signature
 {
-    my $public  = DBDefs::AWS_PUBLIC();
-    my $private = DBDefs::AWS_PRIVATE();
+    my $public  = DBDefs->AWS_PUBLIC();
+    my $private = DBDefs->AWS_PRIVATE();
     return Net::Amazon::AWSSign->new($public, $private);
 }
 
@@ -58,8 +57,8 @@ sub handles
 {
     # Handle any thing that is an Amazon ASIN url relationship (but only if
     # the server config has AWS keys)
-    my $public  = DBDefs::AWS_PUBLIC();
-    my $private = DBDefs::AWS_PRIVATE();
+    my $public  = DBDefs->AWS_PUBLIC();
+    my $private = DBDefs->AWS_PRIVATE();
     return $public && $private;
 }
 
@@ -90,27 +89,10 @@ sub lookup_cover_art
     return $cover_art;
 }
 
-sub search_by_barcode
-{
-    my ($self, $release) = @_;
-
-    return unless $release->barcode and $release->barcode != 0;
-
-    my $url = "http://ecs.amazonaws.com/onca/xml?" .
-                  "Service=AWSECommerceService&" .
-                  "Operation=ItemLookup&" .
-                  "ResponseGroup=Images&" .
-                  "IdType=" . $release->barcode->type . "&" .
-                  "SearchIndex=Music&" .
-                  "ItemId=" . $release->barcode;
-
-    return $self->_lookup_coverart($url);
-}
-
 sub _lookup_coverart {
     my ($self, $url) = @_;
 
-    $url .= "&AssociateTag=" . DBDefs::AMAZON_ASSOCIATE_TAG;
+    $url .= "&AssociateTag=" . DBDefs->AMAZON_ASSOCIATE_TAG;
     $url = $self->_aws_signature->addRESTSecret($url);
 
     # Respect Amazon SLA

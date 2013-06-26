@@ -17,7 +17,7 @@ BEGIN {
 # Has to come before requiring MusicBrainz::Server
 BEGIN {
     use Template;
-    if (DBDefs::CATALYST_DEBUG) {
+    if (DBDefs->CATALYST_DEBUG) {
         $Template::Config::CONTEXT = 'My::Template::Context';
         $INC{'My/Template/Context.pm'} = 1;
     }
@@ -25,10 +25,10 @@ BEGIN {
 
 use MusicBrainz::Server;
 
-debug_method_calls() if DBDefs::CATALYST_DEBUG;
+debug_method_calls() if DBDefs->CATALYST_DEBUG;
 
 builder {
-    if (DBDefs::CATALYST_DEBUG) {
+    if (DBDefs->CATALYST_DEBUG) {
         enable 'Debug', panels => [ qw( Memory Session Timer DAOLogger ExclusiveTime TemplateToolkit Parameters ) ];
     }
     if ($ENV{'MUSICBRAINZ_USE_PROXY'}) {

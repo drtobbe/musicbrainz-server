@@ -1,9 +1,22 @@
 from fabric.api import *
 from time import sleep
 from fabric.colors import red
+from datetime import date
 
 env.use_ssh_config = True
 env.sudo_prefix = "sudo -S -p '%(sudo_prompt)s' -H " % env
+
+def prepare_release():
+    """
+    Prepare for a new release.
+    """
+    no_local_changes()
+    local("git checkout beta")
+    local("git pull --ff-only origin beta")
+    local("git checkout master")
+    local("git pull --ff-only origin master")
+    local("git merge beta")
+    local("git push origin master")
 
 def socket_deploy():
     """
@@ -12,6 +25,7 @@ def socket_deploy():
     successful be started.
     """
     with cd("~/musicbrainz-server"):
+        run("git remote set-url origin git://github.com/metabrainz/musicbrainz-server.git")
         run("git pull --ff-only")
         run("~/musicbrainz-server/admin/socket-deploy.sh")
 
@@ -84,8 +98,9 @@ def production():
     with cd('/home/musicbrainz/musicbrainz-server'):
         # Carton has a tendency to change this file when it does update
         # It's important that we discard these
-        sudo("git reset HEAD -- carton.lock", user="musicbrainz")
+        sudo("git remote set-url origin git://github.com/metabrainz/musicbrainz-server.git", user="musicbrainz")
         sudo("git checkout -- carton.lock", user="musicbrainz")
+        sudo("git reset HEAD -- carton.lock", user="musicbrainz")
 
         # If there's anything uncommited this must be fixed
         sudo("git diff --exit-code", user="musicbrainz")
@@ -132,3 +147,10 @@ def reset_test():
 
 def shutdown():
     sudo("svc -d /etc/service/mb_server-fastcgi")
+
+def tag():
+    tag = prompt("Tag name", default='v-' + date.today().strftime("%Y-%m-%d"))
+    blog_url = prompt("Blog post URL", validate=r'^http.*')
+    no_local_changes()
+    local("git tag -u 'CE33CF04' %s -m '%s' master" % (tag, blog_url))
+    local("git push origin %s" % (tag))

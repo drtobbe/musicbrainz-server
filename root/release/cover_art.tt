@@ -5,12 +5,13 @@
   [%- IF cover_art.size -%]
     [%- FOR artwork=cover_art -%]
 
-      <div class="artwork-cont[% ' mp' IF !artwork.approved %]">
+      <div class="artwork-cont[% ' mp' IF artwork.edits_pending %]">
         <div style="position: relative" class="artwork">
           [%- display_artwork (artwork, undef, undef, 'mb-caa') -%]
         </div>
         <p>
-          [% ln('Type:', 'Types:', artwork.types.size) %] [% comma_only_list(artwork.types) || '-' %]
+          [%- l('Types:') -%]
+          [% comma_only_list(artwork.l_types) || '-' %]
         </p>
         [%- IF artwork.comment -%]
         <p>
@@ -34,8 +35,8 @@
     [%- END -%]
 
     <p>
-      [% l('These images provided by the {caa|Cover Art Archive}.',
-           { caa => 'http://coverartarchive.org' }) %]
+      [% l('These images provided by the {caa|Cover Art Archive}. You can also see them at the {ia|Internet Archive}.',
+           { caa => 'http://coverartarchive.org', ia => ('http://archive.org/details/mbid-' _ entity.gid)}) %]
     </p>
   [%- ELSE -%]
     <p>[% l('We do not currently have any cover art for {release}.',
@@ -49,9 +50,9 @@
   [%- IF c.user_exists -%]
     [%- IF release.may_have_cover_art -%]
     <div class="buttons ui-helper-clearfix">
-      [%- link_release(release, 'add_cover_art', l('Add Cover Art')) -%]
+      [%- link_release(release, 'add_cover_art', lp('Add Cover Art', 'button/menu')) -%]
       [%- IF cover_art.size > 1 -%]
-        [%- link_release(release, 'reorder_cover_art', l('Reorder Cover Art')) -%]
+        [%- link_release(release, 'reorder_cover_art', lp('Reorder Cover Art', 'button/menu')) -%]
       [%- END -%]
     </div>
     [%- ELSE -%]

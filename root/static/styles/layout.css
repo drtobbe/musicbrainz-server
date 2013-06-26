@@ -385,7 +385,6 @@ div.warning img.warning {
 #page.homepage .sidebar {
     float: right;
     font-size: 95%;
-    margin-top: 34px;
     width: auto;
 }
 
@@ -421,9 +420,6 @@ div.warning img.warning {
 #sidebar ul.external_links {
     margin: 5px 0;
     padding-left: 0;
-}
-
-#sidebar ul.external_links {
     list-style-image: none;
     list-style-type: none;
 }
@@ -436,7 +432,7 @@ div.warning img.warning {
 }
 
 #sidebar ul.external_links li.all-relationships {
-	background-image: none;
+    background-image: none;
 }
 
 #sidebar ul.external_links li.home {
@@ -444,11 +440,15 @@ div.warning img.warning {
 }
 
 #sidebar ul.external_links li.allmusic {
-    background-image: url("/static/images/favicons/allmusic-16.png");
+    background-image: url("../images/favicons/allmusic-16.png");
 }
 
 #sidebar ul.external_links li.amazon {
     background-image: url("../images/favicons/amazon-16.png");
+}
+
+#sidebar ul.external_links li.animenewsnetwork {
+    background-image: url("../images/favicons/animenewsnetwork-16.png");
 }
 
 #sidebar ul.external_links li.wikipedia {
@@ -459,8 +459,12 @@ div.warning img.warning {
     background-image: url("../images/favicons/facebook-16.png");
 }
 
+#sidebar ul.external_links li.generasia {
+    background-image: url("../images/favicons/generasia-16.png");
+}
+
 #sidebar ul.external_links li.lastfm {
-    background-image: url("/static/images/favicons/lastfm-16.png");
+    background-image: url("../images/favicons/lastfm-16.png");
 }
 
 #sidebar ul.external_links li.myspace {
@@ -559,6 +563,58 @@ div.warning img.warning {
     background-image: url("../images/favicons/ric-16.png");
 }
 
+#sidebar ul.external_links li.googleplus {
+    background-image: url("../images/favicons/googleplus-16.png");
+}
+
+#sidebar ul.external_links li.dhhu {
+    background-image: url("../images/favicons/dhhu-16.png");
+}
+
+#sidebar ul.external_links li.thesession {
+    background-image: url("../images/favicons/thesession-16.png");
+}
+
+#sidebar ul.external_links li.lieder {
+    background-image: url("../images/favicons/lieder-16.png");
+}
+
+#sidebar ul.external_links li.openlibrary {
+    background-image: url("../images/favicons/openlibrary-16.png");
+}
+
+#sidebar ul.external_links li.viaf {
+    background-image: url("../images/favicons/viaf-16.png");
+}
+
+#sidebar ul.external_links li.bandcamp {
+    background-image: url("../images/favicons/bandcamp-16.png");
+}
+
+#sidebar ul.external_links li.iTunes {
+    background-image: url("../images/favicons/iTunes-16.png");
+}
+
+#sidebar ul.external_links li.spotify {
+    background-image: url("../images/favicons/spotify-16.png");
+}
+
+#sidebar ul.external_links li.wikidata {
+    background-image: url("../images/favicons/wikidata-16.png");
+}
+
+#sidebar ul.licenses {
+    margin: 5px 0;
+    padding-left: 0;
+    list-style-image: none;
+    list-style-type: none;
+}
+
+#sidebar ul.licenses li{
+    display: inline-block;
+    margin-bottom: 2px;
+}
+
 #sidebar .cover-art {
     text-align: center;
 }
@@ -566,6 +622,11 @@ div.warning img.warning {
 #sidebar .cover-art img {
     max-height: 300px;
     max-width: 218px; /* references #sidebar's width */
+}
+
+#sidebar .cover-art-note {
+    color: #777;
+    display: block;
 }
 
 /*
@@ -713,6 +774,8 @@ table.tbl tr.ev th {
     padding: 0.2em 0.4em;
     background: #F2F2F2;
 }
+
+table.tbl tr:target td { background-color: #F2F2b2; }
 
 table.tbl .pos { width: 1em; white-space: nowrap; }
 table.tbl th { word-break: keep-all; white-space: nowrap; }
@@ -945,9 +1008,31 @@ div.artwork-cont {
     text-align: center;
 }
 
+div.artwork-cont p {
+    width: 250px;
+}
+
 div.artwork { position: relative; width: 250px; }
 /* don't include 'div' since this should apply to 'p' as well */
 .artwork img { max-width: 250px; max-height: 250px; }
+
+.homepage div.artwork-cont {
+    width: 125px;
+    height: 125px;
+    position: relative;
+    vertical-align: middle;
+}
+.homepage div.artwork {
+    width: 125px;
+    height: 125px;
+    display: table-cell;
+    vertical-align: middle;
+}
+.homepage div.artwork img {
+    max-width: 125px;
+    max-height: 125px;
+}
+
 div.delete { display: hidden !important; }
 
 .annotation-toggle {
@@ -989,4 +1074,14 @@ span.release-group-type {
     color: #fff;
     border-radius: 3px;
     padding: 0 3px;
+}
+
+a.tagger-icon {
+    width: 41px;
+    height: 16px;
+    display: block;
+}
+
+.actions-header {
+    min-width: 10em;
 }

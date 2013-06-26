@@ -1,11 +1,11 @@
 # 
 # Translators:
-# Mihkel Tõnnov <email address hidden>, 2008-2009,2011-2012.
+# Mihkel Tõnnov <email address hidden>, 2008-2009,2011-2012
 msgid ""
 msgstr ""
 "Project-Id-Version: MusicBrainz\n"
 "Report-Msgid-Bugs-To: http://tickets.musicbrainz.org/\n"
-"PO-Revision-Date: 2012-10-04 13:02+0000\n"
+"PO-Revision-Date: 2013-06-11 17:21+0000\n"
 "Last-Translator: Mihkel Tõnnov <email address hidden>\n"
 "Language-Team: Estonian (http://www.transifex.com/projects/p/musicbrainz/language/et/)\n"
 "MIME-Version: 1.0\n"
@@ -369,6 +369,11 @@ msgstr "keldi keeled"
 msgid "Central American Indian languages"
 msgstr "Kesk-Ameerika indiaanikeeled"
 
+#. frequency:1 iso_code_3:ryu
+#: DB:language/name:5809
+msgid "Central Okinawan"
+msgstr "Kesk-Okinawa"
+
 #. frequency:1 iso_code_3:chg
 #: DB:language/name:75
 msgid "Chagatai"
@@ -614,7 +619,7 @@ msgstr "eelami"
 msgid "English"
 msgstr "inglise"
 
-#. frequency:0 iso_code_3:enm
+#. frequency:1 iso_code_3:enm
 #: DB:language/name:121
 msgid "English, Middle (1100-1500)"
 msgstr "keskinglise (1100–1500)"
@@ -699,7 +704,7 @@ msgstr "prantsuse"
 msgid "French, Middle (ca.1400-1600)"
 msgstr "keskprantsuse (u 1400–1600)"
 
-#. frequency:0 iso_code_3:fro
+#. frequency:1 iso_code_3:fro
 #: DB:language/name:136
 msgid "French, Old (842-ca.1400)"
 msgstr "vanaprantsuse (842 – u 1400)"
@@ -1024,6 +1029,11 @@ msgstr "irokeesi keelkond"
 msgid "Italian"
 msgstr "itaalia"
 
+#. frequency:1 iso_code_3:jam
+#: DB:language/name:2980
+msgid "Jamaican Creole English"
+msgstr "Jamaica kreoolkeel"
+
 #. frequency:2 iso_code_3:jpn
 #: DB:language/name:198
 msgid "Japanese"
@@ -1238,6 +1248,11 @@ msgstr "ladiino"
 #: DB:language/name:235
 msgid "Lahnda"
 msgstr "lahnda (lehnda, läänepandžabi)"
+
+#. frequency:1 iso_code_3:lkt
+#: DB:language/name:3880
+msgid "Lakota"
+msgstr "lakota"
 
 #. frequency:1 iso_code_3:lam
 #: DB:language/name:236
@@ -2422,7 +2437,7 @@ msgstr "koosa"
 #. frequency:1 iso_code_3:rys
 #: DB:language/name:5808
 msgid "Yaeyama"
-msgstr "yaeyama"
+msgstr "jaejama"
 
 #. frequency:1 iso_code_3:sah
 #: DB:language/name:356

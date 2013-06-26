@@ -15,6 +15,14 @@ my @CLASSES = qw(
     MusicBrainz::Server::Edit::Artist::EditAlias
     MusicBrainz::Server::Edit::Artist::Merge
     MusicBrainz::Server::Edit::Artist::EditArtistCredit
+    MusicBrainz::Server::Edit::Area::AddAlias
+    MusicBrainz::Server::Edit::Area::AddAnnotation
+    MusicBrainz::Server::Edit::Area::Create
+    MusicBrainz::Server::Edit::Area::Delete
+    MusicBrainz::Server::Edit::Area::DeleteAlias
+    MusicBrainz::Server::Edit::Area::Edit
+    MusicBrainz::Server::Edit::Area::EditAlias
+    MusicBrainz::Server::Edit::Area::Merge
     MusicBrainz::Server::Edit::Label::AddAlias
     MusicBrainz::Server::Edit::Label::DeleteAlias
     MusicBrainz::Server::Edit::Label::AddAnnotation
@@ -61,7 +69,6 @@ my @CLASSES = qw(
     MusicBrainz::Server::Edit::Release::EditCoverArt
     MusicBrainz::Server::Edit::Release::EditReleaseLabel
     MusicBrainz::Server::Edit::Release::Merge
-    MusicBrainz::Server::Edit::Release::Move
     MusicBrainz::Server::Edit::Release::RemoveCoverArt
     MusicBrainz::Server::Edit::Release::ReorderCoverArt
     MusicBrainz::Server::Edit::Release::ReorderMediums
@@ -70,6 +77,7 @@ my @CLASSES = qw(
     MusicBrainz::Server::Edit::ReleaseGroup::Delete
     MusicBrainz::Server::Edit::ReleaseGroup::Edit
     MusicBrainz::Server::Edit::ReleaseGroup::Merge
+    MusicBrainz::Server::Edit::ReleaseGroup::SetCoverArt
     MusicBrainz::Server::Edit::URL::Edit
     MusicBrainz::Server::Edit::WikiDoc::Change
     MusicBrainz::Server::Edit::Work::AddAlias
@@ -108,6 +116,7 @@ my @CLASSES = qw(
     MusicBrainz::Server::Edit::Historic::MergeReleaseMAC
     MusicBrainz::Server::Edit::Historic::MoveDiscID
     MusicBrainz::Server::Edit::Historic::MoveRelease
+    MusicBrainz::Server::Edit::Historic::MoveReleaseToRG
     MusicBrainz::Server::Edit::Historic::RemoveDiscID
     MusicBrainz::Server::Edit::Historic::RemoveLabelAlias
     MusicBrainz::Server::Edit::Historic::RemoveLink

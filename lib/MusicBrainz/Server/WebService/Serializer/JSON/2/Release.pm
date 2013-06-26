@@ -1,9 +1,10 @@
 package MusicBrainz::Server::WebService::Serializer::JSON::2::Release;
 use Moose;
 use MusicBrainz::Server::Constants qw( :quality );
-use MusicBrainz::Server::WebService::Serializer::JSON::2::Utils qw( list_of serialize_entity );
+use MusicBrainz::Server::WebService::Serializer::JSON::2::Utils qw( list_of serialize_entity boolean );
 
 extends 'MusicBrainz::Server::WebService::Serializer::JSON::2';
+with 'MusicBrainz::Server::WebService::Serializer::JSON::2::Role::Annotation';
 with 'MusicBrainz::Server::WebService::Serializer::JSON::2::Role::GID';
 with 'MusicBrainz::Server::WebService::Serializer::JSON::2::Role::Rating';
 with 'MusicBrainz::Server::WebService::Serializer::JSON::2::Role::Relationships';
@@ -29,17 +30,47 @@ sub serialize
     my %body;
 
     $body{title} = $entity->name;
-    $body{country} = $entity->country
-        ? $entity->country->iso_code : JSON::null;
 
-    $body{asin} = $entity->amazon_asin;
+    if (my ($earliest_event) = $entity->all_events) {
+        my $add_release_event = sub {
+            my ($release_event, $target, $include_country) = @_;
+            $target->{date} = $release_event->date->format;
+            if ($include_country) {
+                $target->{country} = $release_event->country && $release_event->country->country_code
+                    ? $release_event->country->country_code : JSON::null;
+            } else {
+                $target->{area} = $release_event->country
+                    ? serialize_entity($release_event->country) : JSON::null;
+            }
+            return $target;
+        };
+
+        $add_release_event->($earliest_event, \%body, 1);
+
+        $body{'release-events'} = [
+            map { $add_release_event->($_, {}) } $entity->all_events
+        ]
+    }
+
+    $body{asin} = $entity->amazon_asin if ($toplevel);
     $body{barcode} = $entity->barcode->code;
-    $body{date} = $entity->date->format;
-    $body{disambiguation} = $entity->comment;
+    $body{disambiguation} = $entity->comment // "";
     $body{status} = $entity->status_name;
     $body{quality} = _quality ($entity->quality);
     $body{packaging} = $entity->packaging
         ? $entity->packaging->name : JSON::null;
+
+    my $coverart = $stash ? $stash->store($entity)->{'cover-art-archive'} : undef;
+    if ($coverart) {
+        $body{'cover-art-archive'} = {
+            artwork => boolean($entity->cover_art_presence eq 'present'),
+            darkened => boolean($entity->cover_art_presence eq 'darkened'),
+            # force to number
+            count => $coverart->{total} * 1,
+            front => boolean($coverart->{front}),
+            back => boolean($coverart->{back})
+        };
+    }
 
     $body{"text-representation"} = {
         script => $entity->script ? $entity->script->iso_code : JSON::null,
@@ -60,7 +91,7 @@ sub serialize
     else
     {
         $body{"artist-credit"} = serialize_entity ($entity->artist_credit, $inc, $stash)
-            if $inc->artist_credits;
+            if $inc && $inc->artist_credits;
     }
 
     $body{"label-info"} = [
@@ -71,7 +102,7 @@ sub serialize
             }
         } @{ $entity->labels } ] if $toplevel && $inc->labels;
 
-    if ($inc->media || $inc->discids || $inc->recordings)
+    if ($inc && ($inc->media || $inc->discids || $inc->recordings))
     {
         $body{media} = [
             map { serialize_entity($_, $inc, $stash) }

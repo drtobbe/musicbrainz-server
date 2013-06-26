@@ -9,22 +9,20 @@ use MusicBrainz::Server::Constants qw( $EDIT_RELEASE_EDIT_COVER_ART );
 use MusicBrainz::Server::Edit::Exceptions;
 use MusicBrainz::Server::Edit::Utils qw( changed_display_data );
 use MusicBrainz::Server::Translation qw ( N_l );
+use MusicBrainz::Server::Validation qw( normalise_strings );
 
 use aliased 'MusicBrainz::Server::Entity::Release';
+use aliased 'MusicBrainz::Server::Entity::Artwork';
 
 extends 'MusicBrainz::Server::Edit::WithDifferences';
 with 'MusicBrainz::Server::Edit::Release';
 with 'MusicBrainz::Server::Edit::Release::RelatedEntities';
+with 'MusicBrainz::Server::Edit::Role::CoverArt';
 
 sub edit_name { N_l('Edit cover art') }
 sub edit_type { $EDIT_RELEASE_EDIT_COVER_ART }
 sub release_ids { shift->data->{entity}{id} }
-
-sub alter_edit_pending {
-    return {
-        Release => [ shift->release_ids ],
-    }
-}
+sub cover_art_id { shift->data->{id} }
 
 sub change_fields
 {
@@ -93,6 +91,16 @@ sub accept {
     );
 }
 
+sub allow_auto_edit {
+    my $self = shift;
+    return 0 if $self->data->{old}{types}
+        && @{ $self->data->{old}{types} };
+    my ($old_comment, $new_comment) = normalise_strings(
+        $self->data->{old}{comment}, $self->data->{new}{comment});
+    return 0 if $old_comment ne $new_comment;
+    return 1;
+}
+
 sub foreign_keys {
     my ($self) = @_;
 
@@ -127,13 +135,10 @@ sub build_display_data {
     $data{release} = $loaded->{Release}{ $self->data->{entity}{id} } ||
         Release->new( name => $self->data->{entity}{name} );
 
-    # FIXME: replace this with a proper Net::CoverArtArchive::CoverArt object.
-    my $prefix = DBDefs::COVER_ART_ARCHIVE_DOWNLOAD_PREFIX . "/release/" . $data{release}->gid . "/";
-    $data{artwork} = {
-        image => $prefix.$self->data->{id}.'.jpg',
-        large_thumbnail => $prefix.$self->data->{id}.'-500.jpg',
-        small_thumbnail => $prefix.$self->data->{id}.'-250.jpg',
-    };
+    $data{artwork} = Artwork->new(release => $data{release},
+                               id => $self->data->{id},
+                               comment => $self->data->{new}{comment} // '',
+                               cover_art_types => [map {$loaded->{CoverArtType}{$_}} @{ $self->data->{new}{types} }]);
 
     if ($self->data->{old}->{types})
     {
