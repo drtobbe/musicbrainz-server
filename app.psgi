@@ -7,7 +7,7 @@ use Moose::Util qw( ensure_all_roles );
 use Plack::Builder;
 
 BEGIN {
-    if (DBDefs::CATALYST_DEBUG) {
+    if (DBDefs->CATALYST_DEBUG) {
         require Plack::Middleware::Debug::DAOLogger;
         require Plack::Middleware::Debug::ExclusiveTime;
         require Plack::Middleware::Debug::TemplateToolkit;
